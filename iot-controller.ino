@@ -1,8 +1,10 @@
 #include "DashboardView.h"
+#include "JoystickInputDataSource.h"
 #include "Rs485EnvironmentDataSource.h"
 #include "WiFiDataSource.h"
 
 DashboardView dashboard;
+JoystickInputDataSource joystickDataSource;
 Rs485EnvironmentDataSource dataSource;
 WiFiDataSource wifiDataSource;
 
@@ -14,9 +16,12 @@ void setup() {
   Serial.begin(115200);
   dashboard.begin();
   dashboard.drawStaticLayout();
+  joystickDataSource.begin();
   dataSource.begin();
   wifiDataSource.begin();
-  dashboard.update(dataSource.readEnvironment(), wifiDataSource.readNetwork(), 0);
+  EnvironmentData environment = dataSource.readEnvironment();
+  joystickDataSource.readInto(&environment);
+  dashboard.update(environment, wifiDataSource.readNetwork(), 0);
 
   Serial.println("ST7789 RS485 dashboard started");
 }
@@ -29,8 +34,9 @@ void loop() {
 
   if (nowMs - lastUpdateMs >= kRefreshIntervalMs) {
     lastUpdateMs = nowMs;
-    dashboard.update(dataSource.readEnvironment(), wifiDataSource.readNetwork(),
-                     nowMs);
+    EnvironmentData environment = dataSource.readEnvironment();
+    joystickDataSource.readInto(&environment);
+    dashboard.update(environment, wifiDataSource.readNetwork(), nowMs);
   }
 
 

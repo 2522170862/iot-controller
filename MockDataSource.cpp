@@ -33,6 +33,7 @@ EnvironmentData MockDataSource::readEnvironment(uint32_t nowMs) const {
       static_cast<int16_t>(encoderWave * 200.0f - 100.0f),
       "A1 B2 C3 D4",
       true,
+      false,
   };
 }
 
