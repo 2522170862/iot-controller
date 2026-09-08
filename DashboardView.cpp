@@ -76,7 +76,7 @@ void DashboardView::drawInputPage() {
   display_.setTextColor(kMuted);
   display_.setTextSize(1);
   display_.setCursor(52, 304);
-  display_.print("Virtual sensor data");
+  display_.print("RS485 sensor data");
 }
 
 void DashboardView::drawRow(int16_t y, const char* label, const char* value,
@@ -109,8 +109,8 @@ void DashboardView::updateOverview(const EnvironmentData& data,
   drawRow(kFirstRowY + 6 * kRowHeight, "PRESSURE", value, kAccent);
   snprintf(value, sizeof(value), "%.0f lux", data.lightLux);
   drawRow(kFirstRowY + 7 * kRowHeight, "LIGHT", value, kAccent);
-  snprintf(value, sizeof(value), "%.0f %%", data.microphonePercent);
-  drawRow(kFirstRowY + 8 * kRowHeight, "MIC LEVEL", value, kAccent);
+  snprintf(value, sizeof(value), "%.0f m", data.altitudeM);
+  drawRow(kFirstRowY + 8 * kRowHeight, "ALTITUDE", value, kAccent);
 }
 
 void DashboardView::updateInputs(const EnvironmentData& data) {
@@ -123,7 +123,8 @@ void DashboardView::updateInputs(const EnvironmentData& data) {
   drawRow(154, "ENCODER", value, kAccent);
   drawRow(202, "RFID CARD", data.rfidCard == nullptr ? "NO CARD" : data.rfidCard,
           kText);
-  drawRow(250, "DATA MODE", "VIRTUAL", kText);
+  drawRow(250, "SENSOR", data.sensorConnected ? "ONLINE" : "OFFLINE",
+          data.sensorConnected ? kOnline : kOffline);
 }
 
 void DashboardView::update(const EnvironmentData& environment,

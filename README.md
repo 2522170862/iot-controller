@@ -1,6 +1,6 @@
 # ESP32-S3 ST7789 虚拟数据显示模块
 
-这个 Arduino 项目驱动 2.0 英寸、240×320、ST7789 SPI 彩屏，显示虚拟温度和湿度，以及真实 Wi-Fi 状态、本机 IP、设备编号和 MQTT 服务器配置。数据接口已经分离，后续接入真实温湿度传感器时不需要重写界面。
+这个 Arduino 项目驱动 2.0 英寸、240×320、ST7789 SPI 彩屏，显示 IE14 RS485 传感器的光照、温度、大气压、湿度和海拔，以及真实 Wi-Fi 状态、本机 IP、设备编号和 MQTT 服务器配置。
 
 ## 接线
 
@@ -16,6 +16,20 @@
 | DC | GPIO9 | 数据或命令选择 |
 | CS | GPIO8 | SPI 片选 |
 
+### IE14 RS485 传感器
+
+IE14 必须通过 MAX3485、SP3485 或同类 3.3V TTL 转 RS485 收发器连接，不能将 A、B 线直接接到 ESP32。
+
+| ESP32-S3 | RS485 收发器 | 说明 |
+| --- | --- | --- |
+| GPIO17 | DI | UART2 发送 |
+| GPIO16 | RO | UART2 接收 |
+| GPIO18 | DE 与 RE | 高电平发送，低电平接收 |
+| A | IE14 A | RS485 差分线 |
+| B | IE14 B | RS485 差分线 |
+
+传感器使用外部 12-24V 供电。默认通信参数为从站地址 `0x01`、9600 8N1；程序每秒读取一次寄存器 `0x0065` 至 `0x006B`。
+
 ## Arduino IDE 配置
 
 1. 开发板选择 `ESP32S3 Dev Module`。
@@ -27,24 +41,27 @@
 
 ## 屏幕内容
 
-- `TEMPERATURE`：23.0～27.0°C 之间缓慢变化的虚拟温度。
-- `HUMIDITY`：50.0～66.0% 之间缓慢变化的虚拟湿度。
+- `TEMP`：IE14 实时温度。
+- `HUMIDITY`：IE14 实时湿度。
+- `PRESSURE`：IE14 实时大气压。
+- `LIGHT`：IE14 实时光照。
+- `ALTITUDE`：IE14 根据气压计算的海拔。
 - `WIFI OK / LIVE`：ESP32-S3 已经连接 Wi-Fi。
 - `OFFLINE / LIVE`：正在连接或 Wi-Fi 已经断开。
 - `SSID / IP`：显示真实网络名称和 ESP32-S3 获得的 IPv4 地址。
 - `MQTT`：当前显示 `NOT SET`，等确定 MQTT 服务器后再配置。
 
-界面每 500 毫秒读取一次数据，但字段没有变化时不会重新绘制，避免频繁全屏刷新造成闪烁。
+传感器每秒轮询一次；界面每 500 毫秒刷新一次。第二页的 `SENSOR` 字段显示 RS485 通信状态。
 
 ## 后续接入真实模块
 
-真实温湿度接入点位于 `MockDataSource::readEnvironment()`。可以保留 `EnvironmentData` 返回类型，将函数内部替换为 SHT30、AHT20 或 BME280 读取代码。
+IE14 数据源由 `Rs485EnvironmentDataSource` 管理。它在 UART2 上发送 Modbus 请求 `01 03 00 65 00 07 14 17`，校验从站地址、功能码、数据长度和 CRC 后，再将环境数据更新到屏幕。`MockDataSource` 仅保留给测试使用。
 
 真实 Wi-Fi 由 `WiFiDataSource` 管理。`begin()` 启动连接，`poll()` 检查状态并每 10 秒自动重连，`readNetwork()` 向界面提供连接状态、SSID 和 IP。Wi-Fi 名称和密码保存在 `WifiCredentials.h`。
 
 ESP32-S3 只支持 2.4GHz Wi-Fi。当前配置使用实验室的 2.4GHz 网络 `773`，不能使用 `773_5G`。
 
-LCD 引脚集中定义在 `DashboardView.h` 的 `DashboardConfig` 中。如果改变接线，只需要修改该区域。
+LCD 引脚集中定义在 `DashboardView.h` 的 `DashboardConfig` 中。RS485 的 UART2 引脚定义在 `Rs485EnvironmentDataSource.h` 中。
 
 ## 首次上板检查
 
