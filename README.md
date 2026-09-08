@@ -53,6 +53,20 @@ stepperMotor.stop();                      // 停止并释放线圈
 
 只有在 `stepperMotor.isBusy()` 为 `false` 时启动下一次动作。主循环必须持续调用 `stepperMotor.update(micros())`。
 
+### PS2 摇杆
+
+摇杆必须使用 ESP32-S3 的 3.3V 供电，不能直接以 5V 供电后将 X/Y 模拟输出接入 ESP32。
+
+| 摇杆 | ESP32-S3 |
+| --- | --- |
+| V | 3V3 |
+| G | GND |
+| X / VRx | GPIO1 |
+| Y / VRy | GPIO2 |
+| B / SW | GPIO5 |
+
+程序以 12 位 ADC（0-4095）读取 X/Y；按键使用内部上拉，按下时显示 `PRESSED`。
+
 ## Arduino IDE 配置
 
 1. 开发板选择 `ESP32S3 Dev Module`。
@@ -69,7 +83,8 @@ stepperMotor.stop();                      // 停止并释放线圈
 - `PRESSURE`：IE14 实时大气压。
 - `LIGHT`：IE14 实时光照。
 - `ALTITUDE`：IE14 根据气压计算的海拔。
-- `WIFI OK / LIVE`：ESP32-S3 已经连接 Wi-Fi。
+- `JOYSTICK X / Y`：PS2 摇杆实时坐标。
+- `JOYSTICK BTN`：摇杆按键状态。
 - `OFFLINE / LIVE`：正在连接或 Wi-Fi 已经断开。
 - `SSID / IP`：显示真实网络名称和 ESP32-S3 获得的 IPv4 地址。
 - `MQTT`：当前显示 `NOT SET`，等确定 MQTT 服务器后再配置。

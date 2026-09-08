@@ -119,8 +119,9 @@ void DashboardView::updateInputs(const EnvironmentData& data) {
   drawRow(58, "JOYSTICK X", value, kAccent);
   snprintf(value, sizeof(value), "%u", data.joystickY);
   drawRow(106, "JOYSTICK Y", value, kAccent);
-  snprintf(value, sizeof(value), "%d", data.encoderDelta);
-  drawRow(154, "ENCODER", value, kAccent);
+  drawRow(154, "JOYSTICK BTN",
+          data.joystickPressed ? "PRESSED" : "RELEASED",
+          data.joystickPressed ? kOnline : kText);
   drawRow(202, "RFID CARD", data.rfidCard == nullptr ? "NO CARD" : data.rfidCard,
           kText);
   drawRow(250, "SENSOR", data.sensorConnected ? "ONLINE" : "OFFLINE",
