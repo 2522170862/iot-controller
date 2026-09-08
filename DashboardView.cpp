@@ -15,6 +15,12 @@ constexpr uint16_t kOffline = 0xF986;
 constexpr uint32_t kPageIntervalMs = 4000;
 constexpr int16_t kFirstRowY = 48;
 constexpr int16_t kRowHeight = 29;
+
+
+
+
+
+
 }  // namespace
 
 DashboardView::DashboardView()
