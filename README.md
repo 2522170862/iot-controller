@@ -30,6 +30,29 @@ IE14 必须通过 MAX3485、SP3485 或同类 3.3V TTL 转 RS485 收发器连接�
 
 传感器使用外部 12-24V 供电。默认通信参数为从站地址 `0x01`、9600 8N1；程序每秒读取一次寄存器 `0x0065` 至 `0x006B`。
 
+### 28BYJ-48 步进电机
+
+步进电机必须通过 ULN2003 驱动板连接，不得直接连接 ESP32-S3 GPIO。驱动板使用外部 5V 供电，并与 ESP32-S3 共地。
+
+| ULN2003 | ESP32-S3 | 说明 |
+| --- | --- | --- |
+| IN1 | GPIO39 | 电机相位 1 |
+| IN2 | GPIO40 | 电机相位 2 |
+| IN3 | GPIO41 | 电机相位 3 |
+| IN4 | GPIO42 | 电机相位 4 |
+| VCC | 外部 5V | 电机电源 |
+| GND | GND | 与 ESP32-S3 共地 |
+
+`StepperMotor` 使用八拍半步和非阻塞更新。正步数或正角度为一个方向，负值为反方向。示例：
+
+```cpp
+stepperMotor.moveSteps(2048);            // 转动约半圈
+stepperMotor.moveDegrees(-90.0f, 2500);  // 反向转动约 90 度
+stepperMotor.stop();                      // 停止并释放线圈
+```
+
+只有在 `stepperMotor.isBusy()` 为 `false` 时启动下一次动作。主循环必须持续调用 `stepperMotor.update(micros())`。
+
 ## Arduino IDE 配置
 
 1. 开发板选择 `ESP32S3 Dev Module`。
