@@ -26,11 +26,13 @@ EnvironmentData MockDataSource::readEnvironment(uint32_t nowMs) const {
       50.0f + humidityWave * 16.0f,
       998.0f + pressureWave * 20.0f,
       80.0f + lightWave * 720.0f,
+      340.0f,
       8.0f + microphoneWave * 72.0f,
       static_cast<uint16_t>(joystickXWave * 4095.0f),
       static_cast<uint16_t>(joystickYWave * 4095.0f),
       static_cast<int16_t>(encoderWave * 200.0f - 100.0f),
       "A1 B2 C3 D4",
+      true,
   };
 }
 
