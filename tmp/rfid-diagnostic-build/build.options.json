@@ -1,0 +1,10 @@
+{
+  "additionalFiles": "",
+  "builtInLibrariesFolders": "C:\\Users\\乔圣正\\AppData\\Local\\Arduino15\\libraries",
+  "compiler.optimization_flags": "-Os",
+  "customBuildProperties": "",
+  "fqbn": "esp32:esp32:esp32s3:FlashSize=16M,PSRAM=opi",
+  "hardwareFolders": "C:\\Users\\qiao\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\3.3.8,C:\\Users\\qiao\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\3.3.8",
+  "otherLibrariesFolders": "D:\\Arduino_Data\\libraries",
+  "sketchLocation": "E:\\Esp32-S3\\iot-controller\\tests\\rfid_reader_diagnostic"
+}

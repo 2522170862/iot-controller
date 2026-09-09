@@ -11,9 +11,8 @@ class Rs485EnvironmentDataSource {
   const EnvironmentData& readEnvironment() const;
 
  private:
-  static constexpr int8_t kRxPin = 16;
+  static constexpr int8_t kRxPin = 18;
   static constexpr int8_t kTxPin = 17;
-  static constexpr int8_t kDirectionPin = 18;
   static constexpr uint32_t kBaudRate = 9600;
   static constexpr uint32_t kPollIntervalMs = 1000;
   static constexpr uint32_t kResponseTimeoutMs = 150;

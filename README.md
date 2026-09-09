@@ -16,19 +16,35 @@
 | DC | GPIO9 | 数据或命令选择 |
 | CS | GPIO8 | SPI 片选 |
 
+### RC522 RFID 读卡器
+
+RC522 与屏幕共用 SPI 时钟和 MOSI，通过独立片选引脚避免冲突。RC522 只能使用 3.3V 供电。
+
+| RC522 | ESP32-S3 | 说明 |
+| --- | --- | --- |
+| 3.3V | 3V3 | 禁止连接 5V |
+| GND | GND | 公共地 |
+| SCK | GPIO12 | 与屏幕共用 SPI 时钟 |
+| MOSI | GPIO11 | 与屏幕共用 SPI MOSI |
+| MISO | GPIO13 | RFID 数据输出 |
+| SDA / SS | GPIO14 | RFID 独立片选 |
+| RST | GPIO15 | RFID 复位 |
+| IRQ | 不连接 | 当前使用轮询方式 |
+
+程序使用该 TJDZ 模块配套示例中的兼容初始化参数。串口每秒输出一次寻卡状态：`no ISO14443A card detected` 表示射频阶段没有收到兼容卡片响应；`card detected, but UID read failed` 表示已经检测到卡片，但读取 UID 失败。该模块只能读取 13.56MHz ISO14443A 卡（例如 MIFARE S50），不能读取 125kHz ID 卡。
+
 ### IE14 RS485 传感器
 
 IE14 必须通过 MAX3485、SP3485 或同类 3.3V TTL 转 RS485 收发器连接，不能将 A、B 线直接接到 ESP32。
 
 | ESP32-S3 | RS485 收发器 | 说明 |
 | --- | --- | --- |
-| GPIO17 | DI | UART2 发送 |
-| GPIO16 | RO | UART2 接收 |
-| GPIO18 | DE 与 RE | 高电平发送，低电平接收 |
+| GPIO17 | DI / TX | UART1 发送 |
+| GPIO18 | RO / RX | UART1 接收 |
 | A | IE14 A | RS485 差分线 |
 | B | IE14 B | RS485 差分线 |
 
-传感器使用外部 12-24V 供电。默认通信参数为从站地址 `0x01`、9600 8N1；程序每秒读取一次寄存器 `0x0065` 至 `0x006B`。
+当前使用自动收发方向控制的 RS-485 模块，因此不需要连接 DE/RE，GPIO16 保持空闲。传感器使用外部 12-24V 供电。默认通信参数为从站地址 `0x01`、9600 8N1；程序每秒读取一次寄存器 `0x0065` 至 `0x006B`。
 
 ### 28BYJ-48 步进电机
 
@@ -74,7 +90,8 @@ stepperMotor.stop();                      // 停止并释放线圈
 3. PSRAM 选择 `OPI PSRAM`。
 4. 安装 `Adafruit GFX Library`。
 5. 安装 `Adafruit ST7735 and ST7789 Library`。
-6. 打开 `iot-controller.ino`，选择开发板串口并上传。
+6. 安装 `MFRC522` 库。
+7. 打开 `iot-controller.ino`，选择开发板串口并上传。
 
 ## 屏幕内容
 
@@ -93,13 +110,13 @@ stepperMotor.stop();                      // 停止并释放线圈
 
 ## 后续接入真实模块
 
-IE14 数据源由 `Rs485EnvironmentDataSource` 管理。它在 UART2 上发送 Modbus 请求 `01 03 00 65 00 07 14 17`，校验从站地址、功能码、数据长度和 CRC 后，再将环境数据更新到屏幕。`MockDataSource` 仅保留给测试使用。
+IE14 数据源由 `Rs485EnvironmentDataSource` 管理。它在 UART1 上发送 Modbus 请求 `01 03 00 65 00 07 14 17`，校验从站地址、功能码、数据长度和 CRC 后，再将环境数据更新到屏幕。`MockDataSource` 仅保留给测试使用。
 
 真实 Wi-Fi 由 `WiFiDataSource` 管理。`begin()` 启动连接，`poll()` 检查状态并每 10 秒自动重连，`readNetwork()` 向界面提供连接状态、SSID 和 IP。Wi-Fi 名称和密码保存在 `WifiCredentials.h`。
 
 ESP32-S3 只支持 2.4GHz Wi-Fi。当前配置使用实验室的 2.4GHz 网络 `773`，不能使用 `773_5G`。
 
-LCD 引脚集中定义在 `DashboardView.h` 的 `DashboardConfig` 中。RS485 的 UART2 引脚定义在 `Rs485EnvironmentDataSource.h` 中。
+LCD 引脚集中定义在 `DashboardView.h` 的 `DashboardConfig` 中。RS485 的 UART1 引脚定义在 `Rs485EnvironmentDataSource.h` 中。
 
 ## 首次上板检查
 

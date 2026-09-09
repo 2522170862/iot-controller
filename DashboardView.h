@@ -9,6 +9,7 @@
 namespace DashboardConfig {
 constexpr int8_t kLcdSclk = 12;
 constexpr int8_t kLcdMosi = 11;
+constexpr int8_t kSpiMiso = 13;
 constexpr int8_t kLcdRst = 10;
 constexpr int8_t kLcdDc = 9;
 constexpr int8_t kLcdCs = 8;

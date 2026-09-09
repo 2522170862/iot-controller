@@ -1,0 +1,112 @@
+#include <Arduino.h>
+#line 1 "E:\\Esp32-S3\\iot-controller\\tests\\rfid_reader_diagnostic\\rfid_reader_diagnostic.ino"
+#include <MFRC522.h>
+#include <SPI.h>
+
+namespace {
+constexpr uint8_t kSckPin = 12;
+constexpr uint8_t kMosiPin = 11;
+constexpr uint8_t kMisoPin = 13;
+constexpr uint8_t kSsPin = 14;
+constexpr uint8_t kResetPin = 15;
+constexpr uint32_t kTestIntervalMs = 500;
+
+MFRC522 reader(kSsPin, kResetPin);
+uint32_t lastTestMs = 0;
+
+void printHexByte(byte value) {
+  if (value < 0x10) {
+    Serial.print('0');
+  }
+  Serial.print(value, HEX);
+}
+
+void configureTjdzReader() {
+  reader.PCD_WriteRegister(MFRC522::TModeReg, 0x8D);
+  reader.PCD_WriteRegister(MFRC522::TPrescalerReg, 0x3E);
+  reader.PCD_WriteRegister(MFRC522::TReloadRegH, 0x00);
+  reader.PCD_WriteRegister(MFRC522::TReloadRegL, 30);
+  reader.PCD_WriteRegister(MFRC522::TxASKReg, 0x40);
+  reader.PCD_WriteRegister(MFRC522::ModeReg, 0x3D);
+  reader.PCD_WriteRegister(MFRC522::RFCfgReg, 0x7F);
+  delay(10);
+  reader.PCD_AntennaOn();
+}
+
+void printReaderRegisters() {
+  Serial.print("VersionReg=0x");
+  printHexByte(reader.PCD_ReadRegister(MFRC522::VersionReg));
+  Serial.print(" TxControlReg=0x");
+  printHexByte(reader.PCD_ReadRegister(MFRC522::TxControlReg));
+  Serial.print(" RFCfgReg=0x");
+  printHexByte(reader.PCD_ReadRegister(MFRC522::RFCfgReg));
+  Serial.println();
+}
+
+void printUid() {
+  Serial.print("RFID UID: ");
+  for (byte index = 0; index < reader.uid.size; ++index) {
+    if (index != 0) {
+      Serial.print(':');
+    }
+    printHexByte(reader.uid.uidByte[index]);
+  }
+  Serial.println();
+}
+}  // namespace
+
+#line 56 "E:\\Esp32-S3\\iot-controller\\tests\\rfid_reader_diagnostic\\rfid_reader_diagnostic.ino"
+void setup();
+#line 71 "E:\\Esp32-S3\\iot-controller\\tests\\rfid_reader_diagnostic\\rfid_reader_diagnostic.ino"
+void loop();
+#line 56 "E:\\Esp32-S3\\iot-controller\\tests\\rfid_reader_diagnostic\\rfid_reader_diagnostic.ino"
+void setup() {
+  Serial.begin(115200);
+  delay(1000);
+
+  pinMode(kSsPin, OUTPUT);
+  digitalWrite(kSsPin, HIGH);
+  SPI.begin(kSckPin, kMisoPin, kMosiPin, kSsPin);
+  reader.PCD_Init();
+  configureTjdzReader();
+
+  Serial.println("RC522 standalone diagnostic started");
+  Serial.println("Place a 13.56MHz ISO14443A card on the antenna");
+  printReaderRegisters();
+}
+
+void loop() {
+  const uint32_t nowMs = millis();
+  if (nowMs - lastTestMs < kTestIntervalMs) {
+    return;
+  }
+  lastTestMs = nowMs;
+
+  byte atqa[2] = {};
+  byte atqaSize = sizeof(atqa);
+  const MFRC522::StatusCode status = reader.PICC_WakeupA(atqa, &atqaSize);
+  if (status == MFRC522::STATUS_TIMEOUT) {
+    Serial.println("WUPA: no card response");
+    return;
+  }
+  if (status != MFRC522::STATUS_OK && status != MFRC522::STATUS_COLLISION) {
+    Serial.print("WUPA error: ");
+    Serial.println(MFRC522::GetStatusCodeName(status));
+    return;
+  }
+
+  Serial.print("Card RF response, ATQA=");
+  printHexByte(atqa[0]);
+  Serial.print(' ');
+  printHexByte(atqa[1]);
+  Serial.println();
+
+  if (reader.PICC_ReadCardSerial()) {
+    printUid();
+    reader.PICC_HaltA();
+    reader.PCD_StopCrypto1();
+  } else {
+    Serial.println("Card responded, UID selection failed");
+  }
+}
+

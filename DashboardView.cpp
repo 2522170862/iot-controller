@@ -31,7 +31,8 @@ DashboardView::DashboardView()
       pageDrawn_(false) {}
 
 void DashboardView::begin() {
-  SPI.begin(DashboardConfig::kLcdSclk, -1, DashboardConfig::kLcdMosi,
+  SPI.begin(DashboardConfig::kLcdSclk, DashboardConfig::kSpiMiso,
+            DashboardConfig::kLcdMosi,
             DashboardConfig::kLcdCs);
   display_.init(DashboardConfig::kWidth, DashboardConfig::kHeight);
   display_.setRotation(DashboardConfig::kRotation);

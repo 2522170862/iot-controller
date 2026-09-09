@@ -5,12 +5,10 @@
 #include "ModbusEnvironmentProtocol.h"
 
 namespace {
-HardwareSerial rs485Serial(2);
+HardwareSerial rs485Serial(1);
 }
 
 void Rs485EnvironmentDataSource::begin() {
-  pinMode(kDirectionPin, OUTPUT);
-  digitalWrite(kDirectionPin, LOW);
   rs485Serial.begin(kBaudRate, SERIAL_8N1, kRxPin, kTxPin);
   resetResponse();
 }
@@ -61,10 +59,8 @@ void Rs485EnvironmentDataSource::startReadRequest(uint32_t nowMs) {
   uint8_t request[ModbusEnvironmentProtocol::kReadRequestLength];
   ModbusEnvironmentProtocol::buildReadAllRequest(request);
 
-  digitalWrite(kDirectionPin, HIGH);
   rs485Serial.write(request, sizeof(request));
   rs485Serial.flush();
-  digitalWrite(kDirectionPin, LOW);
 
   lastRequestMs_ = nowMs;
   requestStartedMs_ = nowMs;

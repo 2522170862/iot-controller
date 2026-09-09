@@ -1,11 +1,13 @@
 #include "DashboardView.h"
 #include "JoystickInputDataSource.h"
+#include "RfidReader.h"
 #include "Rs485EnvironmentDataSource.h"
 #include "StepperMotor.h"
 #include "WiFiDataSource.h"
 
 DashboardView dashboard;
 JoystickInputDataSource joystickDataSource;
+RfidReader rfidReader(14, 15);
 Rs485EnvironmentDataSource dataSource;
 WiFiDataSource wifiDataSource;
 
@@ -29,6 +31,7 @@ void setup() {
   Serial.begin(115200);
   dashboard.begin();
   dashboard.drawStaticLayout();
+  rfidReader.begin();
   joystickDataSource.begin();
   dataSource.begin();
   wifiDataSource.begin();
@@ -36,6 +39,7 @@ void setup() {
   nextStepperMoveMs = millis() + kStepperMoveIntervalMs;
   EnvironmentData environment = dataSource.readEnvironment();
   joystickDataSource.readInto(&environment);
+  environment.rfidCard = rfidReader.cardUid();
   dashboard.update(environment, wifiDataSource.readNetwork(), 0);
 
   Serial.println("ST7789 RS485 dashboard started");
@@ -47,6 +51,11 @@ void loop() {
   dataSource.poll(nowMs);
   wifiDataSource.poll(nowMs);
   stepperMotor.update(micros());
+
+  if (rfidReader.poll()) {
+    Serial.print("RFID card UID: ");
+    Serial.println(rfidReader.cardUid());
+  }
 
   if (stepperMovedDegrees < kStepperTargetDegrees &&
       static_cast<int32_t>(nowMs - nextStepperMoveMs) >= 0 &&
@@ -60,6 +69,7 @@ void loop() {
     lastUpdateMs = nowMs;
     EnvironmentData environment = dataSource.readEnvironment();
     joystickDataSource.readInto(&environment);
+    environment.rfidCard = rfidReader.cardUid();
     dashboard.update(environment, wifiDataSource.readNetwork(), nowMs);
   }
 }
