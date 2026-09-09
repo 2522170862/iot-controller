@@ -4,13 +4,6 @@
 
 #include "ModbusEnvironmentProtocol.h"
 
-<<<<<<< HEAD
-namespace {
-HardwareSerial rs485Serial(1);
-}
-
-void Rs485EnvironmentDataSource::begin() {
-=======
 namespace
 {
   HardwareSerial rs485Serial(2);
@@ -18,7 +11,6 @@ namespace
 
 void Rs485EnvironmentDataSource::begin()
 {
->>>>>>> 9186764a07cbc104909227bad36ea2c508f27e75
   rs485Serial.begin(kBaudRate, SERIAL_8N1, kRxPin, kTxPin);
   resetResponse();
 }

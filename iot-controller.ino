@@ -1,21 +1,15 @@
 #include "DashboardView.h"
 #include "JoystickInputDataSource.h"
-<<<<<<< HEAD
 #include "RfidReader.h"
-=======
 #include "RotaryEncoderInputDataSource.h"
->>>>>>> 9186764a07cbc104909227bad36ea2c508f27e75
 #include "Rs485EnvironmentDataSource.h"
 #include "StepperMotor.h"
 #include "WiFiDataSource.h"
 
 DashboardView dashboard;
 JoystickInputDataSource joystickDataSource;
-<<<<<<< HEAD
 RfidReader rfidReader(14, 15);
-=======
 RotaryEncoderInputDataSource rotaryEncoderDataSource;
->>>>>>> 9186764a07cbc104909227bad36ea2c508f27e75
 Rs485EnvironmentDataSource dataSource;
 WiFiDataSource wifiDataSource;
 
@@ -48,11 +42,8 @@ void setup() {
   nextStepperMoveMs = millis() + kStepperMoveIntervalMs;
   EnvironmentData environment = dataSource.readEnvironment();
   joystickDataSource.readInto(&environment);
-<<<<<<< HEAD
   environment.rfidCard = rfidReader.cardUid();
-=======
   rotaryEncoderDataSource.readInto(&environment);
->>>>>>> 9186764a07cbc104909227bad36ea2c508f27e75
   dashboard.update(environment, wifiDataSource.readNetwork(), 0);
 
   Serial.println("ST7789 RS485 dashboard started");
@@ -83,11 +74,8 @@ void loop() {
     lastUpdateMs = nowMs;
     EnvironmentData environment = dataSource.readEnvironment();
     joystickDataSource.readInto(&environment);
-<<<<<<< HEAD
     environment.rfidCard = rfidReader.cardUid();
-=======
     rotaryEncoderDataSource.readInto(&environment);
->>>>>>> 9186764a07cbc104909227bad36ea2c508f27e75
     dashboard.update(environment, wifiDataSource.readNetwork(), nowMs);
   }
 }
