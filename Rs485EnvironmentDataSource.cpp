@@ -4,56 +4,68 @@
 
 #include "ModbusEnvironmentProtocol.h"
 
-namespace {
-HardwareSerial rs485Serial(2);
+namespace
+{
+  HardwareSerial rs485Serial(2);
 }
 
-void Rs485EnvironmentDataSource::begin() {
-  pinMode(kDirectionPin, OUTPUT);
-  digitalWrite(kDirectionPin, LOW);
+void Rs485EnvironmentDataSource::begin()
+{
   rs485Serial.begin(kBaudRate, SERIAL_8N1, kRxPin, kTxPin);
   resetResponse();
 }
 
-void Rs485EnvironmentDataSource::poll(uint32_t nowMs) {
-  if (!requestInFlight_) {
-    if (nowMs - lastRequestMs_ >= kPollIntervalMs) {
+void Rs485EnvironmentDataSource::poll(uint32_t nowMs)
+{
+  if (!requestInFlight_)
+  {
+    if (nowMs - lastRequestMs_ >= kPollIntervalMs)
+    {
       startReadRequest(nowMs);
     }
     return;
   }
 
   while (rs485Serial.available() > 0 &&
-         responseLength_ < sizeof(response_)) {
+         responseLength_ < sizeof(response_))
+  {
     response_[responseLength_++] = static_cast<uint8_t>(rs485Serial.read());
   }
 
-  if (responseLength_ == sizeof(response_)) {
+  if (responseLength_ == sizeof(response_))
+  {
     EnvironmentData received = environment_;
     if (ModbusEnvironmentProtocol::parseReadAllResponse(
-            response_, responseLength_, &received)) {
+            response_, responseLength_, &received))
+    {
       received.microphonePercent = 0.0f;
       received.sensorConnected = true;
       environment_ = received;
-    } else {
+    }
+    else
+    {
       environment_.sensorConnected = false;
     }
     requestInFlight_ = false;
     return;
   }
 
-  if (nowMs - requestStartedMs_ >= kResponseTimeoutMs) {
+  if (nowMs - requestStartedMs_ >= kResponseTimeoutMs)
+  {
     environment_.sensorConnected = false;
     requestInFlight_ = false;
   }
 }
 
-const EnvironmentData& Rs485EnvironmentDataSource::readEnvironment() const {
+const EnvironmentData &Rs485EnvironmentDataSource::readEnvironment() const
+{
   return environment_;
 }
 
-void Rs485EnvironmentDataSource::startReadRequest(uint32_t nowMs) {
-  while (rs485Serial.available() > 0) {
+void Rs485EnvironmentDataSource::startReadRequest(uint32_t nowMs)
+{
+  while (rs485Serial.available() > 0)
+  {
     rs485Serial.read();
   }
   resetResponse();
@@ -61,16 +73,15 @@ void Rs485EnvironmentDataSource::startReadRequest(uint32_t nowMs) {
   uint8_t request[ModbusEnvironmentProtocol::kReadRequestLength];
   ModbusEnvironmentProtocol::buildReadAllRequest(request);
 
-  digitalWrite(kDirectionPin, HIGH);
   rs485Serial.write(request, sizeof(request));
   rs485Serial.flush();
-  digitalWrite(kDirectionPin, LOW);
 
   lastRequestMs_ = nowMs;
   requestStartedMs_ = nowMs;
   requestInFlight_ = true;
 }
 
-void Rs485EnvironmentDataSource::resetResponse() {
+void Rs485EnvironmentDataSource::resetResponse()
+{
   responseLength_ = 0;
 }
