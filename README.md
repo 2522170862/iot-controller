@@ -83,6 +83,18 @@ stepperMotor.stop();                      // 停止并释放线圈
 
 程序以 12 位 ADC（0-4095）读取 X/Y；按键使用内部上拉，按下时显示 `PRESSED`。
 
+### EC11 旋转编码器
+
+| 编码器 | ESP32-S3 |
+| --- | --- |
+| V | 3V3 |
+| G | GND |
+| A | GPIO6 |
+| B | GPIO7 |
+| S | GPIO38 |
+
+编码器以 A/B 相位判断方向；每 4 个有效相位边沿计为 1 步，顺时针为正、逆时针为负。按下编码器时，`ENCODER` 行追加显示 `PUSH`。
+
 ## Arduino IDE 配置
 
 1. 开发板选择 `ESP32S3 Dev Module`。
@@ -102,6 +114,7 @@ stepperMotor.stop();                      // 停止并释放线圈
 - `ALTITUDE`：IE14 根据气压计算的海拔。
 - `JOYSTICK X / Y`：PS2 摇杆实时坐标。
 - `JOYSTICK BTN`：摇杆按键状态。
+- `ENCODER`：EC11 累计步数和按压状态。
 - `OFFLINE / LIVE`：正在连接或 Wi-Fi 已经断开。
 - `SSID / IP`：显示真实网络名称和 ESP32-S3 获得的 IPv4 地址。
 - `MQTT`：当前显示 `NOT SET`，等确定 MQTT 服务器后再配置。

@@ -4,13 +4,18 @@
 
 #include "DashboardTypes.h"
 
-class Rs485EnvironmentDataSource {
- public:
+class Rs485EnvironmentDataSource
+{
+public:
   void begin();
   void poll(uint32_t nowMs);
-  const EnvironmentData& readEnvironment() const;
+  const EnvironmentData &readEnvironment() const;
 
+<<<<<<< HEAD
  private:
+=======
+private:
+>>>>>>> 9186764a07cbc104909227bad36ea2c508f27e75
   static constexpr int8_t kRxPin = 18;
   static constexpr int8_t kTxPin = 17;
   static constexpr uint32_t kBaudRate = 9600;
