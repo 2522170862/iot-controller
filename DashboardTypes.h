@@ -15,6 +15,8 @@ struct EnvironmentData {
   const char* rfidCard;
   bool sensorConnected;
   bool joystickPressed;
+  int32_t encoderPosition;
+  bool encoderPressed;
 };
 
 struct NetworkStatus {

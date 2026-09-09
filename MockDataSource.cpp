@@ -34,6 +34,8 @@ EnvironmentData MockDataSource::readEnvironment(uint32_t nowMs) const {
       "A1 B2 C3 D4",
       true,
       false,
+      0,
+      false,
   };
 }
 

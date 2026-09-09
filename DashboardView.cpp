@@ -68,15 +68,11 @@ void DashboardView::drawOverviewPage() {
 
 void DashboardView::drawInputPage() {
   display_.fillScreen(kBackground);
-  for (uint8_t row = 0; row < 5; ++row) {
-    const int16_t y = 58 + row * 48;
+  for (uint8_t row = 0; row < 6; ++row) {
+    const int16_t y = 47 + row * 44;
     display_.fillRoundRect(10, y, 220, 38, 6, kPanel);
     display_.drawRoundRect(10, y, 220, 38, 6, kBorder);
   }
-  display_.setTextColor(kMuted);
-  display_.setTextSize(1);
-  display_.setCursor(52, 304);
-  display_.print("RS485 sensor data");
 }
 
 void DashboardView::drawRow(int16_t y, const char* label, const char* value,
@@ -116,15 +112,18 @@ void DashboardView::updateOverview(const EnvironmentData& data,
 void DashboardView::updateInputs(const EnvironmentData& data) {
   char value[32];
   snprintf(value, sizeof(value), "%u", data.joystickX);
-  drawRow(58, "JOYSTICK X", value, kAccent);
+  drawRow(47, "JOYSTICK X", value, kAccent);
   snprintf(value, sizeof(value), "%u", data.joystickY);
-  drawRow(106, "JOYSTICK Y", value, kAccent);
-  drawRow(154, "JOYSTICK BTN",
+  drawRow(91, "JOYSTICK Y", value, kAccent);
+  drawRow(135, "JOYSTICK BTN",
           data.joystickPressed ? "PRESSED" : "RELEASED",
           data.joystickPressed ? kOnline : kText);
-  drawRow(202, "RFID CARD", data.rfidCard == nullptr ? "NO CARD" : data.rfidCard,
+  snprintf(value, sizeof(value), "%ld %s", static_cast<long>(data.encoderPosition),
+           data.encoderPressed ? "PUSH" : "");
+  drawRow(179, "ENCODER", value, kAccent);
+  drawRow(223, "RFID CARD", data.rfidCard == nullptr ? "NO CARD" : data.rfidCard,
           kText);
-  drawRow(250, "SENSOR", data.sensorConnected ? "ONLINE" : "OFFLINE",
+  drawRow(267, "SENSOR", data.sensorConnected ? "ONLINE" : "OFFLINE",
           data.sensorConnected ? kOnline : kOffline);
 }
 

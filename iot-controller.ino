@@ -1,11 +1,13 @@
 #include "DashboardView.h"
 #include "JoystickInputDataSource.h"
+#include "RotaryEncoderInputDataSource.h"
 #include "Rs485EnvironmentDataSource.h"
 #include "StepperMotor.h"
 #include "WiFiDataSource.h"
 
 DashboardView dashboard;
 JoystickInputDataSource joystickDataSource;
+RotaryEncoderInputDataSource rotaryEncoderDataSource;
 Rs485EnvironmentDataSource dataSource;
 WiFiDataSource wifiDataSource;
 
@@ -30,12 +32,14 @@ void setup() {
   dashboard.begin();
   dashboard.drawStaticLayout();
   joystickDataSource.begin();
+  rotaryEncoderDataSource.begin();
   dataSource.begin();
   wifiDataSource.begin();
   stepperMotor.begin();
   nextStepperMoveMs = millis() + kStepperMoveIntervalMs;
   EnvironmentData environment = dataSource.readEnvironment();
   joystickDataSource.readInto(&environment);
+  rotaryEncoderDataSource.readInto(&environment);
   dashboard.update(environment, wifiDataSource.readNetwork(), 0);
 
   Serial.println("ST7789 RS485 dashboard started");
@@ -46,6 +50,7 @@ void loop() {
   const uint32_t nowMs = millis();
   dataSource.poll(nowMs);
   wifiDataSource.poll(nowMs);
+  rotaryEncoderDataSource.poll();
   stepperMotor.update(micros());
 
   if (stepperMovedDegrees < kStepperTargetDegrees &&
@@ -60,6 +65,7 @@ void loop() {
     lastUpdateMs = nowMs;
     EnvironmentData environment = dataSource.readEnvironment();
     joystickDataSource.readInto(&environment);
+    rotaryEncoderDataSource.readInto(&environment);
     dashboard.update(environment, wifiDataSource.readNetwork(), nowMs);
   }
 }
