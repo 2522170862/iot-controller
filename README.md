@@ -31,7 +31,7 @@ RC522 与屏幕共用 SPI 时钟和 MOSI，通过独立片选引脚避免冲突�
 | RST | GPIO15 | RFID 复位 |
 | IRQ | 不连接 | 当前使用轮询方式 |
 
-程序使用该 TJDZ 模块配套示例中的兼容初始化参数。串口每秒输出一次寻卡状态：`no ISO14443A card detected` 表示射频阶段没有收到兼容卡片响应；`card detected, but UID read failed` 表示已经检测到卡片，但读取 UID 失败。该模块只能读取 13.56MHz ISO14443A 卡（例如 MIFARE S50），不能读取 125kHz ID 卡。
+程序使用 MFRC522 库的标准初始化和寻卡流程。检测到新卡后，串口输出卡片类型和 UID，屏幕的 `RFID CARD` 行显示 UID。该模块只能读取 13.56MHz ISO14443A 卡（例如 MIFARE S50），不能读取 125kHz ID 卡。
 
 ### IE14 RS485 传感器
 
@@ -104,12 +104,16 @@ stepperMotor.stop();                      // 停止并释放线圈
 | 两路继电器 | IN1 | GPIO4 | 模块外部 5V，确认支持 3.3V 控制 |
 | 两路继电器 | IN2 | GPIO5 | 模块外部 5V，确认支持 3.3V 控制 |
 | MAX4466 | OUT | GPIO8 | 3.3V，模拟输出不得超过 3.3V |
-| MG90S | SIGNAL | GPIO16 | 舵机外部稳定 5V |
+| MG90S | SIGNAL | GPIO16 | 舵机外部稳定 5V，上电转到 90 度 |
 | WS2812B | DIN | GPIO21 | 矩阵外部 5V |
 | 直流电机驱动 | IN1 | GPIO47 | 电机按额定电压外部供电 |
 | 直流电机驱动 | IN2 | GPIO48 | 电机按额定电压外部供电 |
 
 所有外部电源必须与 ESP32-S3 共地。GPIO43、GPIO44 保留给 UART0，不分配给普通外设。
+
+MG90S 由 `ServoMotor` 使用 ESP32-S3 LEDC 输出 50 Hz PWM，不需要 PCA9685 或第三方舵机库。程序上电后执行 `servoMotor.begin(90)`，后续可调用 `servoMotor.setAngle(0)` 至 `servoMotor.setAngle(180)` 设置角度。为减小堵转风险，脉宽限制为 600 至 2400 微秒。
+
+8×8 WS2812B 矩阵由 `RgbLedMatrix` 控制，共 64 颗 LED。上电后，中间两行的中央六列显示红色汉字“一”，周围像素显示暗白色。程序将总体亮度限制为 25/255，防止测试时电流过大。矩阵必须使用外部稳定 5V 电源，并与 ESP32-S3 共地；GPIO21 到 DIN 建议串联约 330 欧姆电阻。
 
 ## Arduino IDE 配置
 
@@ -119,7 +123,8 @@ stepperMotor.stop();                      // 停止并释放线圈
 4. 安装 `Adafruit GFX Library`。
 5. 安装 `Adafruit ST7735 and ST7789 Library`。
 6. 安装 `MFRC522` 库。
-7. 打开 `iot-controller.ino`，选择开发板串口并上传。
+7. 安装 `Adafruit NeoPixel` 库。
+8. 打开 `iot-controller.ino`，选择开发板串口并上传。
 
 ## 屏幕内容
 

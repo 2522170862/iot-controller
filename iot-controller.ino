@@ -2,8 +2,10 @@
 #include "JoystickInputDataSource.h"
 #include "PeripheralPins.h"
 #include "RfidReader.h"
+#include "RgbLedMatrix.h"
 #include "RotaryEncoderInputDataSource.h"
 #include "Rs485EnvironmentDataSource.h"
+#include "ServoMotor.h"
 #include "StepperMotor.h"
 #include "WiFiDataSource.h"
 
@@ -13,6 +15,8 @@ RfidReader rfidReader(PeripheralPins::kRfidSs, PeripheralPins::kRfidReset);
 RotaryEncoderInputDataSource rotaryEncoderDataSource;
 Rs485EnvironmentDataSource dataSource;
 WiFiDataSource wifiDataSource;
+ServoMotor servoMotor(PeripheralPins::kServoSignal);
+RgbLedMatrix rgbLedMatrix(PeripheralPins::kRgbData);
 
 namespace {
 constexpr uint32_t kRefreshIntervalMs = 500;
@@ -41,6 +45,11 @@ void setup() {
   dataSource.begin();
   wifiDataSource.begin();
   stepperMotor.begin();
+  rgbLedMatrix.begin();
+  Serial.println("WS2812B matrix shows a centered red Yi character");
+  if (servoMotor.begin(90)) {
+    Serial.println("MG90S moved to 90 degrees");
+  }
   nextStepperMoveMs = millis() + kStepperMoveIntervalMs;
   EnvironmentData environment = dataSource.readEnvironment();
   joystickDataSource.readInto(&environment);
