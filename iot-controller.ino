@@ -1,5 +1,6 @@
 #include "DashboardView.h"
 #include "JoystickInputDataSource.h"
+#include "MicrophoneInputDataSource.h"
 #include "PeripheralPins.h"
 #include "RfidReader.h"
 #include "RotaryEncoderInputDataSource.h"
@@ -9,6 +10,7 @@
 
 DashboardView dashboard;
 JoystickInputDataSource joystickDataSource;
+MicrophoneInputDataSource microphoneInputDataSource;
 RfidReader rfidReader(PeripheralPins::kRfidSs, PeripheralPins::kRfidReset);
 RotaryEncoderInputDataSource rotaryEncoderDataSource;
 Rs485EnvironmentDataSource dataSource;
@@ -37,6 +39,7 @@ void setup() {
   dashboard.drawStaticLayout();
   rfidReader.begin();
   joystickDataSource.begin();
+  microphoneInputDataSource.begin();
   rotaryEncoderDataSource.begin();
   dataSource.begin();
   wifiDataSource.begin();
@@ -44,6 +47,7 @@ void setup() {
   nextStepperMoveMs = millis() + kStepperMoveIntervalMs;
   EnvironmentData environment = dataSource.readEnvironment();
   joystickDataSource.readInto(&environment);
+  microphoneInputDataSource.readInto(&environment);
   environment.rfidCard = rfidReader.cardUid();
   rotaryEncoderDataSource.readInto(&environment);
   dashboard.update(environment, wifiDataSource.readNetwork(), 0);
@@ -56,6 +60,7 @@ void loop() {
   const uint32_t nowMs = millis();
   dataSource.poll(nowMs);
   wifiDataSource.poll(nowMs);
+  microphoneInputDataSource.poll(micros());
   rotaryEncoderDataSource.poll();
   stepperMotor.update(micros());
 
@@ -76,6 +81,7 @@ void loop() {
     lastUpdateMs = nowMs;
     EnvironmentData environment = dataSource.readEnvironment();
     joystickDataSource.readInto(&environment);
+    microphoneInputDataSource.readInto(&environment);
     environment.rfidCard = rfidReader.cardUid();
     rotaryEncoderDataSource.readInto(&environment);
     dashboard.update(environment, wifiDataSource.readNetwork(), nowMs);

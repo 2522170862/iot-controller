@@ -116,7 +116,8 @@ void DashboardView::updateInputs(const EnvironmentData& data) {
   drawRow(47, "JOYSTICK X", value, kAccent);
   snprintf(value, sizeof(value), "%u", data.joystickY);
   drawRow(91, "JOYSTICK Y", value, kAccent);
-  drawRow(135, "JOYSTICK BTN", "NOT USED", kMuted);
+  snprintf(value, sizeof(value), "%.0f %%", data.microphonePercent);
+  drawRow(135, "MIC LEVEL", value, kAccent);
   snprintf(value, sizeof(value), "%ld %s", static_cast<long>(data.encoderPosition),
            data.encoderPressed ? "PUSH" : "");
   drawRow(179, "ENCODER", value, kAccent);
