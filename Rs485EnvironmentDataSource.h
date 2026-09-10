@@ -3,6 +3,7 @@
 #include <stdint.h>
 
 #include "DashboardTypes.h"
+#include "PeripheralPins.h"
 
 class Rs485EnvironmentDataSource
 {
@@ -12,8 +13,8 @@ public:
   const EnvironmentData &readEnvironment() const;
 
 private:
-  static constexpr int8_t kRxPin = 18;
-  static constexpr int8_t kTxPin = 17;
+  static constexpr int8_t kRxPin = PeripheralPins::kRs485Rx;
+  static constexpr int8_t kTxPin = PeripheralPins::kRs485Tx;
   static constexpr uint32_t kBaudRate = 9600;
   static constexpr uint32_t kPollIntervalMs = 1000;
   static constexpr uint32_t kResponseTimeoutMs = 150;

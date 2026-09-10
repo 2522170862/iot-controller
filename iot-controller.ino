@@ -1,5 +1,6 @@
 #include "DashboardView.h"
 #include "JoystickInputDataSource.h"
+#include "PeripheralPins.h"
 #include "RfidReader.h"
 #include "RotaryEncoderInputDataSource.h"
 #include "Rs485EnvironmentDataSource.h"
@@ -8,29 +9,30 @@
 
 DashboardView dashboard;
 JoystickInputDataSource joystickDataSource;
-RfidReader rfidReader(14, 15);
+RfidReader rfidReader(PeripheralPins::kRfidSs, PeripheralPins::kRfidReset);
 RotaryEncoderInputDataSource rotaryEncoderDataSource;
 Rs485EnvironmentDataSource dataSource;
 WiFiDataSource wifiDataSource;
 
 namespace {
 constexpr uint32_t kRefreshIntervalMs = 500;
-constexpr uint8_t kStepperIn1Pin = 39;
-constexpr uint8_t kStepperIn2Pin = 40;
-constexpr uint8_t kStepperIn3Pin = 41;
-constexpr uint8_t kStepperIn4Pin = 42;
 constexpr uint32_t kStepperMoveIntervalMs = 10000;
 constexpr float kStepperMoveDegrees = 20.0f;
 constexpr float kStepperTargetDegrees = 60.0f;
 }
 
-StepperMotor stepperMotor(kStepperIn1Pin, kStepperIn2Pin, kStepperIn3Pin,
-                          kStepperIn4Pin);
+StepperMotor stepperMotor(
+    PeripheralPins::kStepperIn1, PeripheralPins::kStepperIn2,
+    PeripheralPins::kStepperIn3, PeripheralPins::kStepperIn4);
 uint32_t nextStepperMoveMs = 0;
 float stepperMovedDegrees = 0.0f;
 
 void setup() {
   Serial.begin(115200);
+  pinMode(PeripheralPins::kLcdCs, OUTPUT);
+  digitalWrite(PeripheralPins::kLcdCs, HIGH);
+  pinMode(PeripheralPins::kRfidSs, OUTPUT);
+  digitalWrite(PeripheralPins::kRfidSs, HIGH);
   dashboard.begin();
   dashboard.drawStaticLayout();
   rfidReader.begin();

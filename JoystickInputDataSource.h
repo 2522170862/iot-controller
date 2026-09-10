@@ -3,23 +3,20 @@
 #include <Arduino.h>
 
 #include "DashboardTypes.h"
+#include "PeripheralPins.h"
 
 class JoystickInputDataSource {
  public:
   using AnalogReadFunction = uint16_t (*)(uint8_t pin);
-  using DigitalReadFunction = int (*)(uint8_t pin);
+  static constexpr int8_t kXPin = PeripheralPins::kJoystickX;
+  static constexpr int8_t kYPin = PeripheralPins::kJoystickY;
 
-  static constexpr int8_t kXPin = 1;
-  static constexpr int8_t kYPin = 2;
-  static constexpr int8_t kButtonPin = 5;
-
-  JoystickInputDataSource(AnalogReadFunction analogReadFunction = analogRead,
-                          DigitalReadFunction digitalReadFunction = digitalRead);
+  explicit JoystickInputDataSource(
+      AnalogReadFunction analogReadFunction = analogRead);
 
   void begin();
   void readInto(EnvironmentData* data) const;
 
  private:
   AnalogReadFunction analogReadFunction_;
-  DigitalReadFunction digitalReadFunction_;
 };

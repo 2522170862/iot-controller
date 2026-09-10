@@ -7,7 +7,7 @@ constexpr uint8_t kMosiPin = 11;
 constexpr uint8_t kMisoPin = 13;
 constexpr uint8_t kSsPin = 14;
 constexpr uint8_t kResetPin = 15;
-constexpr uint8_t kLcdCsPin = 8;
+constexpr uint8_t kLcdCsPin = 9;
 constexpr uint32_t kTestIntervalMs = 500;
 constexpr uint32_t kDiagnosticSpiHz = 250000;
 

@@ -3,16 +3,13 @@
 #include <Arduino.h>
 
 JoystickInputDataSource::JoystickInputDataSource(
-    AnalogReadFunction analogReadFunction,
-    DigitalReadFunction digitalReadFunction)
-    : analogReadFunction_(analogReadFunction),
-      digitalReadFunction_(digitalReadFunction) {}
+    AnalogReadFunction analogReadFunction)
+    : analogReadFunction_(analogReadFunction) {}
 
 void JoystickInputDataSource::begin() {
   analogReadResolution(12);
   analogSetPinAttenuation(kXPin, ADC_11db);
   analogSetPinAttenuation(kYPin, ADC_11db);
-  pinMode(kButtonPin, INPUT_PULLUP);
 }
 
 void JoystickInputDataSource::readInto(EnvironmentData* data) const {
@@ -22,5 +19,5 @@ void JoystickInputDataSource::readInto(EnvironmentData* data) const {
 
   data->joystickX = static_cast<uint16_t>(analogReadFunction_(kXPin));
   data->joystickY = static_cast<uint16_t>(analogReadFunction_(kYPin));
-  data->joystickPressed = digitalReadFunction_(kButtonPin) == LOW;
+  data->joystickPressed = false;
 }

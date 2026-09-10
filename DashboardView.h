@@ -5,14 +5,15 @@
 #include <SPI.h>
 
 #include "DashboardTypes.h"
+#include "PeripheralPins.h"
 
 namespace DashboardConfig {
-constexpr int8_t kLcdSclk = 12;
-constexpr int8_t kLcdMosi = 11;
-constexpr int8_t kSpiMiso = 13;
-constexpr int8_t kLcdRst = 10;
-constexpr int8_t kLcdDc = 9;
-constexpr int8_t kLcdCs = 8;
+constexpr int8_t kLcdSclk = PeripheralPins::kSpiSck;
+constexpr int8_t kLcdMosi = PeripheralPins::kSpiMosi;
+constexpr int8_t kSpiMiso = PeripheralPins::kSpiMiso;
+constexpr int8_t kLcdRst = PeripheralPins::kLcdReset;
+constexpr int8_t kLcdDc = PeripheralPins::kLcdDc;
+constexpr int8_t kLcdCs = PeripheralPins::kLcdCs;
 constexpr uint16_t kWidth = 240;
 constexpr uint16_t kHeight = 320;
 constexpr uint8_t kRotation = 0;

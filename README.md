@@ -12,9 +12,9 @@
 | VCC | 3V3 | 屏幕电源 |
 | SCL | GPIO12 | SPI SCLK |
 | SDA | GPIO11 | SPI MOSI，不是 I2C SDA |
-| RST | GPIO10 | 屏幕复位 |
-| DC | GPIO9 | 数据或命令选择 |
-| CS | GPIO8 | SPI 片选 |
+| RST | ESP32-S3 EN | 与主控同步硬件复位，不占 GPIO |
+| DC | GPIO10 | 数据或命令选择 |
+| CS | GPIO9 | SPI 片选 |
 
 ### RC522 RFID 读卡器
 
@@ -44,7 +44,7 @@ IE14 必须通过 MAX3485、SP3485 或同类 3.3V TTL 转 RS485 收发器连接�
 | A | IE14 A | RS485 差分线 |
 | B | IE14 B | RS485 差分线 |
 
-当前使用自动收发方向控制的 RS-485 模块，因此不需要连接 DE/RE，GPIO16 保持空闲。传感器使用外部 12-24V 供电。默认通信参数为从站地址 `0x01`、9600 8N1；程序每秒读取一次寄存器 `0x0065` 至 `0x006B`。
+当前使用自动收发方向控制的 RS-485 模块，因此不需要连接 DE/RE。GPIO16 预留给 MG90S 舵机信号。传感器使用外部 12-24V 供电。默认通信参数为从站地址 `0x01`、9600 8N1；程序每秒读取一次寄存器 `0x0065` 至 `0x006B`。
 
 ### 28BYJ-48 步进电机
 
@@ -79,9 +79,9 @@ stepperMotor.stop();                      // 停止并释放线圈
 | G | GND |
 | X / VRx | GPIO1 |
 | Y / VRy | GPIO2 |
-| B / SW | GPIO5 |
+| B / SW | 不连接 |
 
-程序以 12 位 ADC（0-4095）读取 X/Y；按键使用内部上拉，按下时显示 `PRESSED`。
+程序以 12 位 ADC（0-4095）读取 X/Y；摇杆按键不使用，GPIO5 分配给第二路继电器。
 
 ### EC11 旋转编码器
 
@@ -94,6 +94,22 @@ stepperMotor.stop();                      // 停止并释放线圈
 | S | GPIO38 |
 
 编码器以 A/B 相位判断方向；每 4 个有效相位边沿计为 1 步，顺时针为正、逆时针为负。按下编码器时，`ENCODER` 行追加显示 `PUSH`。
+
+### 其他输出与麦克风预留引脚
+
+以下引脚已经集中定义在 `PeripheralPins.h`，但对应控制功能尚未接入主循环；在确认继电器触发电平、电机驱动方式和舵机动作范围后再启用。
+
+| 外设 | 模块端 | ESP32-S3 | 供电要求 |
+| --- | --- | --- | --- |
+| 两路继电器 | IN1 | GPIO4 | 模块外部 5V，确认支持 3.3V 控制 |
+| 两路继电器 | IN2 | GPIO5 | 模块外部 5V，确认支持 3.3V 控制 |
+| MAX4466 | OUT | GPIO8 | 3.3V，模拟输出不得超过 3.3V |
+| MG90S | SIGNAL | GPIO16 | 舵机外部稳定 5V |
+| WS2812B | DIN | GPIO21 | 矩阵外部 5V |
+| 直流电机驱动 | IN1 | GPIO47 | 电机按额定电压外部供电 |
+| 直流电机驱动 | IN2 | GPIO48 | 电机按额定电压外部供电 |
+
+所有外部电源必须与 ESP32-S3 共地。GPIO43、GPIO44 保留给 UART0，不分配给普通外设。
 
 ## Arduino IDE 配置
 
@@ -113,7 +129,7 @@ stepperMotor.stop();                      // 停止并释放线圈
 - `LIGHT`：IE14 实时光照。
 - `ALTITUDE`：IE14 根据气压计算的海拔。
 - `JOYSTICK X / Y`：PS2 摇杆实时坐标。
-- `JOYSTICK BTN`：摇杆按键状态。
+- `JOYSTICK BTN`：当前固定显示 `NOT USED`。
 - `ENCODER`：EC11 累计步数和按压状态。
 - `OFFLINE / LIVE`：正在连接或 Wi-Fi 已经断开。
 - `SSID / IP`：显示真实网络名称和 ESP32-S3 获得的 IPv4 地址。
@@ -129,11 +145,11 @@ IE14 数据源由 `Rs485EnvironmentDataSource` 管理。它在 UART1 上发送 M
 
 ESP32-S3 只支持 2.4GHz Wi-Fi。当前配置使用实验室的 2.4GHz 网络 `773`，不能使用 `773_5G`。
 
-LCD 引脚集中定义在 `DashboardView.h` 的 `DashboardConfig` 中。RS485 的 UART1 引脚定义在 `Rs485EnvironmentDataSource.h` 中。
+全部外设引脚集中定义在 `PeripheralPins.h`。LCD 的显示参数保留在 `DashboardView.h`，RS485 的通信参数保留在 `Rs485EnvironmentDataSource.h`。
 
 ## 首次上板检查
 
-- 白屏：检查 VCC、GND、CS、DC、RST 和 SPI 引脚，确认屏幕确实是 ST7789。
+- 白屏：检查 VCC、GND、CS、DC、EN/RST 和 SPI 引脚，确认屏幕确实是 ST7789。
 - 画面旋转：调整 `DashboardConfig::kRotation`，可选值为 0、1、2、3。
 - 颜色红蓝颠倒或画面偏移：需要根据具体屏幕模组调整 ST7789 初始化参数。
 - 反复重启：检查供电和串口启动日志，先断开其他大电流执行器。
