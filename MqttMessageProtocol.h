@@ -9,6 +9,9 @@ enum class MqttCommandKind {
   kServo,
   kStepperMove,
   kStepperStop,
+  kDcMotorForward,
+  kDcMotorReverse,
+  kDcMotorStop,
   kInputGet,
   kInvalid,
 };

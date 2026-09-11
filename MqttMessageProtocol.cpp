@@ -71,6 +71,25 @@ MqttParseResult MqttMessageProtocol::parseCommand(const char* json,
     output->value3 = speed;
     return MqttParseResult::kOk;
   }
+  if (strcmp(module, "dc_motor") == 0) {
+    if (strcmp(action, "stop") == 0) {
+      output->kind = MqttCommandKind::kDcMotorStop;
+      return MqttParseResult::kOk;
+    }
+    JsonObjectConst params = document["params"].as<JsonObjectConst>();
+    if (params.isNull() ||
+        !readInt(params["speed"], 0, 100, &output->value1)) {
+      return MqttParseResult::kInvalidParams;
+    }
+    if (strcmp(action, "forward") == 0) {
+      output->kind = MqttCommandKind::kDcMotorForward;
+    } else if (strcmp(action, "reverse") == 0) {
+      output->kind = MqttCommandKind::kDcMotorReverse;
+    } else {
+      return MqttParseResult::kInvalidAction;
+    }
+    return MqttParseResult::kOk;
+  }
   if (strcmp(module, "input") == 0) {
     if (strcmp(action, "get") != 0) return MqttParseResult::kInvalidAction;
     output->kind = MqttCommandKind::kInputGet;
