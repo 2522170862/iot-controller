@@ -4,12 +4,18 @@
 #include "RgbLedMatrix.h"
 #include "ServoMotor.h"
 #include "StepperMotor.h"
+#include "DcMotor.h"
 
 ModuleCommandDispatcher::ModuleCommandDispatcher(RelayController* relay,
                                                    RgbLedMatrix* rgb,
                                                    ServoMotor* servo,
-                                                   StepperMotor* stepper)
-    : relay_(relay), rgb_(rgb), servo_(servo), stepper_(stepper) {}
+                                                   StepperMotor* stepper,
+                                                   DcMotor* dcMotor)
+    : relay_(relay),
+      rgb_(rgb),
+      servo_(servo),
+      stepper_(stepper),
+      dcMotor_(dcMotor) {}
 
 CommandExecutionResult ModuleCommandDispatcher::dispatch(const MqttCommand& command) {
   switch (command.kind) {
@@ -37,6 +43,18 @@ CommandExecutionResult ModuleCommandDispatcher::dispatch(const MqttCommand& comm
     case MqttCommandKind::kStepperStop:
       if (stepper_ == nullptr) return {false, "unavailable"};
       stepper_->stop(true);
+      return {true, "stopped"};
+    case MqttCommandKind::kDcMotorForward:
+      if (dcMotor_ == nullptr) return {false, "unavailable"};
+      dcMotor_->forward(static_cast<uint8_t>(command.value1));
+      return {true, "forward"};
+    case MqttCommandKind::kDcMotorReverse:
+      if (dcMotor_ == nullptr) return {false, "unavailable"};
+      dcMotor_->reverse(static_cast<uint8_t>(command.value1));
+      return {true, "reverse"};
+    case MqttCommandKind::kDcMotorStop:
+      if (dcMotor_ == nullptr) return {false, "unavailable"};
+      dcMotor_->stop();
       return {true, "stopped"};
     case MqttCommandKind::kInputGet:
       return {true, "input"};

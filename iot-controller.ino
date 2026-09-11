@@ -1,4 +1,5 @@
 #include "DashboardView.h"
+#include "DcMotor.h"
 #include "JoystickInputDataSource.h"
 #include "MicrophoneInputDataSource.h"
 #include "MqttMessageProtocol.h"
@@ -27,6 +28,7 @@ WiFiDataSource wifiDataSource;
 ServoMotor servoMotor(PeripheralPins::kServoSignal);
 RgbLedMatrix rgbLedMatrix(PeripheralPins::kRgbData);
 MqttService mqttService;
+DcMotor dcMotor(PeripheralPins::kDcMotorIn1, PeripheralPins::kDcMotorIn2);
 
 namespace {
 constexpr uint32_t kRefreshIntervalMs = 500;
@@ -35,7 +37,9 @@ constexpr uint32_t kRefreshIntervalMs = 500;
 StepperMotor stepperMotor(
     PeripheralPins::kStepperIn1, PeripheralPins::kStepperIn2,
     PeripheralPins::kStepperIn3, PeripheralPins::kStepperIn4);
-ModuleCommandDispatcher commandDispatcher(&relayController, &rgbLedMatrix, &servoMotor, &stepperMotor);
+ModuleCommandDispatcher commandDispatcher(&relayController, &rgbLedMatrix,
+                                          &servoMotor, &stepperMotor,
+                                          &dcMotor);
 
 namespace {
 uint32_t mqttSequence = 0;
@@ -107,6 +111,9 @@ void setup() {
   wifiDataSource.begin();
   mqttService.begin();
   stepperMotor.begin();
+  dcMotor.begin();
+  dcMotor.startStartupDemo(millis());
+  Serial.println("DC motor startup demo: forward, stop, reverse, stop");
   rgbLedMatrix.begin();
   Serial.println("WS2812B matrix shows a centered red Yi character");
   if (servoMotor.begin(90)) {
@@ -131,8 +138,10 @@ void loop() {
   microphoneInputDataSource.poll(micros());
   rotaryEncoderDataSource.poll();
   stepperMotor.update(micros());
+  dcMotor.update(nowMs);
 
   if (rfidReader.poll()) {
+    dashboard.notifyRfidReceived();
     Serial.print("RFID card UID: ");
     Serial.println(rfidReader.cardUid());
     publishRfid(rfidReader.cardUid());

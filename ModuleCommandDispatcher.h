@@ -6,6 +6,7 @@ class RelayController;
 class RgbLedMatrix;
 class ServoMotor;
 class StepperMotor;
+class DcMotor;
 
 struct CommandExecutionResult {
   bool ok;
@@ -15,7 +16,8 @@ struct CommandExecutionResult {
 class ModuleCommandDispatcher {
  public:
   ModuleCommandDispatcher(RelayController* relay, RgbLedMatrix* rgb,
-                          ServoMotor* servo, StepperMotor* stepper);
+                          ServoMotor* servo, StepperMotor* stepper,
+                          DcMotor* dcMotor = nullptr);
   CommandExecutionResult dispatch(const MqttCommand& command);
 
  private:
@@ -23,4 +25,5 @@ class ModuleCommandDispatcher {
   RgbLedMatrix* rgb_;
   ServoMotor* servo_;
   StepperMotor* stepper_;
+  DcMotor* dcMotor_;
 };
