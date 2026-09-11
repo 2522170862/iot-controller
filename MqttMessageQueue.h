@@ -3,8 +3,10 @@
 #include <stddef.h>
 
 struct MqttMessage {
-  char topic[40];
-  char payload[385];
+  static constexpr size_t kTopicCapacity = 40;
+  static constexpr size_t kPayloadCapacity = 385;
+  char topic[kTopicCapacity];
+  char payload[kPayloadCapacity];
   bool isReply;
 };
 

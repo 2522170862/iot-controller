@@ -5,6 +5,7 @@
 #include <stdio.h>
 
 #include "WifiCredentials.h"
+#include "MqttCredentials.h"
 
 WiFiDataSource::WiFiDataSource()
     : connected_(false), lastAttemptMs_(0), localIp_{0} {
@@ -48,7 +49,7 @@ NetworkStatus WiFiDataSource::readNetwork() const {
       connected_,
       WifiCredentials::kSsid,
       localIp_,
-      "NOT SET",
+      MqttCredentials::kServer,
   };
 }
 
