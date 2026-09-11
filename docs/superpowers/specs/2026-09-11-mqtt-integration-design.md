@@ -73,6 +73,7 @@ PubSubClient 回调只把收到的 Topic 和负载复制进固定长度接收队
 | `rgb` | `set` / `clear` | `params.r/g/b/brightness` | 颜色 0–255；亮度 0–25，限制峰值功耗 |
 | `servo` | `set` | `params.angle` | 角度 0–180 |
 | `stepper` | `move` / `stop` | `params.turns/direction/speed` | 圈数为正数；方向为 `cw` 或 `ccw`；速度单位 RPM |
+| `input` | `get` | 无 | 返回当前摇杆与编码器数据，不控制硬件 |
 
 步进电机的 `move` 命令按圈数、方向和 RPM 换算为半步与步进间隔。新 `move` 命令在电机
 仍忙碌时拒绝并回执 `busy`；`stop` 可立即停止并释放线圈。
@@ -84,7 +85,8 @@ PubSubClient 回调只把收到的 Topic 和负载复制进固定长度接收队
 所有上报发布到 `LoTC2S/`，格式为 `type: "telemetry"`：
 
 - 环境传感器：每 20 秒一次，含温度、湿度、气压、光照、海拔、麦克风强度和传感器连接状态。
-- 摇杆与旋转编码器：数值或按键状态改变时上报。
+- 摇杆与旋转编码器：不主动上报。服务端使用 `module: "input"`、`action: "get"`
+  发起查询后，设备以同一 `hash` 回传当前摇杆坐标、摇杆按键、编码器位置与编码器按键状态。
 - RFID：读取到新卡号时立即上报。
 - 继电器、RGB、舵机、步进电机：仅在命令执行后通过 `reply` 回报状态，不额外周期上报。
 
