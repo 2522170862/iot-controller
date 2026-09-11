@@ -1,0 +1,9 @@
+{
+  "additionalFiles": "",
+  "compiler.optimization_flags": "-Os",
+  "customBuildProperties": "",
+  "fqbn": "esp32:esp32:esp32s3",
+  "hardwareFolders": "C:\\Users\\25221\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\3.3.3,C:\\Users\\25221\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\3.3.3",
+  "otherLibrariesFolders": "C:\\Users\\25221\\Documents\\Arduino\\libraries",
+  "sketchLocation": "D:\\work\\loTDS\\iot-controller\\tests\\mqtt_service_state_test"
+}
