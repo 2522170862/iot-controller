@@ -2,6 +2,7 @@
 #include "JoystickInputDataSource.h"
 #include "MicrophoneInputDataSource.h"
 #include "PeripheralPins.h"
+#include "RelayController.h"
 #include "RfidReader.h"
 #include "RgbLedMatrix.h"
 #include "RotaryEncoderInputDataSource.h"
@@ -14,6 +15,8 @@ DashboardView dashboard;
 JoystickInputDataSource joystickDataSource;
 MicrophoneInputDataSource microphoneInputDataSource;
 RfidReader rfidReader(PeripheralPins::kRfidSs, PeripheralPins::kRfidReset);
+RelayController relayController(PeripheralPins::kRelay1, PeripheralPins::kRelay2,
+                                pinMode, digitalWrite);
 RotaryEncoderInputDataSource rotaryEncoderDataSource;
 Rs485EnvironmentDataSource dataSource;
 WiFiDataSource wifiDataSource;
@@ -35,6 +38,7 @@ float stepperMovedDegrees = 0.0f;
 
 void setup() {
   Serial.begin(115200);
+  relayController.begin();
   pinMode(PeripheralPins::kLcdCs, OUTPUT);
   digitalWrite(PeripheralPins::kLcdCs, HIGH);
   pinMode(PeripheralPins::kRfidSs, OUTPUT);

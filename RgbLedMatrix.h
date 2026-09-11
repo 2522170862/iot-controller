@@ -12,6 +12,7 @@ class RgbLedMatrix {
 
   void begin();
   void fillWhite(uint8_t brightness = kMaximumBrightness);
+  void fillColor(uint8_t red, uint8_t green, uint8_t blue, uint8_t brightness);
   void showCenteredYi();
   void clear();
 

@@ -156,6 +156,27 @@ MG90S 由 `ServoMotor` 使用 ESP32-S3 LEDC 输出 50 Hz PWM，不需要 PCA9685
 - `SSID / IP`：显示真实网络名称和 ESP32-S3 获得的 IPv4 地址。
 - `MQTT`：当前显示 `NOT SET`，等确定 MQTT 服务器后再配置。
 
+### 两路继电器（MQTT 控制接口已预留）
+
+继电器模块使用 GPIO4（IN1）和 GPIO5（IN2）。模块跳帽设为 `Low + Com`
+时为低电平触发：程序启动时两路均输出高电平，保持断开。
+
+后续 MQTT 回调直接调用：
+
+```cpp
+relayController.handleMqttCommand(topic, payload, payloadLength);
+```
+
+支持的主题与负载如下：
+
+| Topic | Payload | 效果 |
+| --- | --- | --- |
+| `iot-controller/relay/1/set` | `ON` / `OFF` | 控制继电器 1 |
+| `iot-controller/relay/2/set` | `ON` / `OFF` | 控制继电器 2 |
+| `iot-controller/relay/all/set` | `OFF` | 关闭全部继电器 |
+
+无效主题或负载会被忽略，且不会改变继电器状态。
+
 传感器每秒轮询一次；界面每 500 毫秒刷新一次。第二页的 `SENSOR` 字段显示 RS485 通信状态。
 
 ## 后续接入真实模块

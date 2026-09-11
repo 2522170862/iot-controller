@@ -19,6 +19,9 @@ class StepperMotor {
   void stop(bool releaseCoils = true);
   void release();
   bool isBusy() const;
+  static constexpr uint32_t stepIntervalUsForRpm(uint8_t rpm) {
+    return rpm == 0 ? kDefaultStepIntervalUs : 60000000UL / (rpm * kHalfStepsPerRevolution);
+  }
 
  private:
   void writePhase(uint8_t phaseIndex);
