@@ -112,8 +112,6 @@ void setup() {
   mqttService.begin();
   stepperMotor.begin();
   dcMotor.begin();
-  dcMotor.startStartupDemo(millis());
-  Serial.println("DC motor startup demo: forward, stop, reverse, stop");
   rgbLedMatrix.begin();
   Serial.println("WS2812B matrix shows a centered red Yi character");
   if (servoMotor.begin(90)) {
@@ -138,7 +136,6 @@ void loop() {
   microphoneInputDataSource.poll(micros());
   rotaryEncoderDataSource.poll();
   stepperMotor.update(micros());
-  dcMotor.update(nowMs);
 
   if (rfidReader.poll()) {
     dashboard.notifyRfidReceived();

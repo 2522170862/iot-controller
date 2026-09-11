@@ -1,7 +1,7 @@
 # MQTT 指令格式说明
 
-本说明对应当前 ESP32-S3 控制器工程的 MQTT 实现。直流电机模块暂未接入，
-不支持 MQTT 指令。
+本说明对应当前 ESP32-S3 控制器工程的 MQTT 实现。直流电机使用 IN1/IN2
+驱动，可通过 MQTT 控制方向、速度和停止；控制器上电时默认保持停止。
 
 ## 1. 主题与基本规则
 
@@ -11,7 +11,6 @@
 | 控制器 → 服务端 | `LoTC2S/` | 0 | 发布执行回执和主动遥测 |
 
 - 负载使用 UTF-8 编码的单行 JSON；不要添加额外文本、换行或十六进制空格。
-- 当前只有一个设备，主题后**不要**附加设备编号、`module` 或 `channel`。
 - MQTT 服务端地址、端口和认证信息由固件中的 `MqttCredentials.h` 配置；认证信息不应写入业务消息或本说明。
 - 所有由控制器发布的消息都带有 8 位十六进制字符串 `hash`。服务端下发命令时应携带自己的 `hash`，控制器会在回执中原样返回它，以便请求和回执一一对应。
 
@@ -111,7 +110,38 @@
 
 若步进电机仍在执行上一次 `move`，新的 `move` 会被拒绝，并返回 `state: "busy"`。此时可等待完成，或先发送 `stop`。
 
-### 3.5 操控输入查询（摇杆和旋转编码器）
+### 3.5 直流电机
+
+`module` 固定为 `dc_motor`。电机上电默认停止，只有收到 MQTT 命令才会动作。
+
+正转：
+
+```json
+{"hash":"10000008","module":"dc_motor","action":"forward","params":{"speed":60}}
+```
+
+反转：
+
+```json
+{"hash":"10000009","module":"dc_motor","action":"reverse","params":{"speed":60}}
+```
+
+停止：
+
+```json
+{"hash":"1000000a","module":"dc_motor","action":"stop"}
+```
+
+| 字段 | 类型与范围 | 说明 |
+| --- | --- | --- |
+| `action` | `forward` / `reverse` / `stop` | 分别表示正转、反转和停止。 |
+| `params.speed` | 整数，0–100 | 仅 `forward`、`reverse` 必填，表示 PWM 占空比百分比。`0` 等效于不输出动力。 |
+
+每个成功命令分别返回 `state: "forward"`、`state: "reverse"` 或
+`state: "stopped"`。改变方向时，固件会先将另一方向 PWM 清零，避免 IN1、IN2
+同时输出。
+
+### 3.6 操控输入查询（摇杆和旋转编码器）
 
 `module` 固定为 `input`，只支持 `get`，不需要 `channel` 和 `params`。
 
@@ -144,7 +174,8 @@
 | `set` | RGB 或舵机设置完成。 |
 | `clear` | RGB 矩阵已清空。 |
 | `moving` | 步进电机已接受运动任务。 |
-| `stopped` | 步进电机已停止。 |
+| `stopped` | 步进电机或直流电机已停止。 |
+| `forward` / `reverse` | 直流电机已按指定方向运行。 |
 | `busy` | 步进电机正在执行先前的运动任务。 |
 | `unavailable` | 对应硬件模块不可用。 |
 | `invalid_command` | JSON、模块名、动作名、字段或参数不符合协议。 |
