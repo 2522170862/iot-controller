@@ -1,4 +1,5 @@
 #include "DashboardView.h"
+#include "ConnectionStatusIndicators.h"
 #include "DcMotor.h"
 #include "JoystickInputDataSource.h"
 #include "MicrophoneInputDataSource.h"
@@ -29,6 +30,8 @@ ServoMotor servoMotor(PeripheralPins::kServoSignal);
 RgbLedMatrix rgbLedMatrix(PeripheralPins::kRgbData);
 MqttService mqttService;
 DcMotor dcMotor(PeripheralPins::kDcMotorIn1, PeripheralPins::kDcMotorIn2);
+ConnectionStatusIndicators connectionIndicators(PeripheralPins::kWifiIndicator,
+                                                 PeripheralPins::kMqttIndicator);
 
 namespace {
 constexpr uint32_t kRefreshIntervalMs = 500;
@@ -96,6 +99,7 @@ void processCommand(const MqttMessage& message, const EnvironmentData& data) {
 
 void setup() {
   Serial.begin(115200);
+  connectionIndicators.begin();
   relayController.begin();
   pinMode(PeripheralPins::kLcdCs, OUTPUT);
   digitalWrite(PeripheralPins::kLcdCs, HIGH);
@@ -133,6 +137,8 @@ void loop() {
   dataSource.poll(nowMs);
   wifiDataSource.poll(nowMs);
   mqttService.poll(nowMs, wifiDataSource.readNetwork().connected);
+  connectionIndicators.update(wifiDataSource.readNetwork().connected,
+                              mqttService.connected());
   microphoneInputDataSource.poll(micros());
   rotaryEncoderDataSource.poll();
   stepperMotor.update(micros());
