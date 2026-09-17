@@ -5,6 +5,11 @@
 namespace {
 uint8_t state = 0b11;
 bool buttonPressed = false;
+uint8_t pinModes[64] = {};
+
+void fakePinMode(uint8_t pin, uint8_t mode) {
+  pinModes[pin] = mode;
+}
 
 int fakeDigitalRead(uint8_t pin) {
   if (pin == RotaryEncoderInputDataSource::kButtonPin) {
@@ -36,8 +41,12 @@ void rotateCounterclockwise(RotaryEncoderInputDataSource* source) {
 }  // namespace
 
 void setup() {
-  RotaryEncoderInputDataSource source(fakeDigitalRead);
+  RotaryEncoderInputDataSource source(fakeDigitalRead, fakePinMode);
   source.begin();
+
+  assert(pinModes[RotaryEncoderInputDataSource::kAPin] == INPUT_PULLUP);
+  assert(pinModes[RotaryEncoderInputDataSource::kBPin] == INPUT_PULLUP);
+  assert(pinModes[RotaryEncoderInputDataSource::kButtonPin] == INPUT_PULLUP);
 
   rotateClockwise(&source);
   rotateClockwise(&source);

@@ -49,6 +49,8 @@ uint32_t mqttSequence = 0;
 uint32_t lastEnvironmentTelemetryMs = 0;
 int32_t lastEncoderPosition = 0;
 bool lastEncoderPressed = false;
+uint16_t lastJoystickX = 0;
+uint16_t lastJoystickY = 0;
 
 void makeHash(char hash[9]) { MqttMessageProtocol::generateHash(++mqttSequence, millis(), hash); }
 
@@ -72,6 +74,13 @@ void publishEncoder(const EnvironmentData& data) {
   char hash[9] = {}; makeHash(hash);
   char json[180] = {};
   snprintf(json, sizeof(json), "{\"hash\":\"%s\",\"type\":\"telemetry\",\"module\":\"encoder\",\"position\":%ld,\"pressed\":%s}", hash, static_cast<long>(data.encoderPosition), data.encoderPressed ? "true" : "false");
+  enqueueJson(json);
+}
+
+void publishJoystick(const EnvironmentData& data) {
+  char hash[9] = {}; makeHash(hash);
+  char json[180] = {};
+  snprintf(json, sizeof(json), "{\"hash\":\"%s\",\"type\":\"telemetry\",\"module\":\"joystick\",\"x\":%u,\"y\":%u,\"pressed\":%s}", hash, data.joystickX, data.joystickY, data.joystickPressed ? "true" : "false");
   enqueueJson(json);
 }
 
@@ -123,6 +132,8 @@ void setup() {
   }
   EnvironmentData environment = dataSource.readEnvironment();
   joystickDataSource.readInto(&environment);
+  lastJoystickX = environment.joystickX;
+  lastJoystickY = environment.joystickY;
   microphoneInputDataSource.readInto(&environment);
   environment.rfidCard = rfidReader.cardUid();
   rotaryEncoderDataSource.readInto(&environment);
@@ -167,6 +178,11 @@ void loop() {
       publishEncoder(environment);
       lastEncoderPosition = environment.encoderPosition;
       lastEncoderPressed = environment.encoderPressed;
+    }
+    if (MqttTelemetrySchedule::joystickChanged(environment.joystickX, environment.joystickY, lastJoystickX, lastJoystickY)) {
+      publishJoystick(environment);
+      lastJoystickX = environment.joystickX;
+      lastJoystickY = environment.joystickY;
     }
     dashboard.update(environment, wifiDataSource.readNetwork(), nowMs);
   }

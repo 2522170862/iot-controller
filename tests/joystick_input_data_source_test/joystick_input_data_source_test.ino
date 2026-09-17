@@ -3,8 +3,14 @@
 #include "../../JoystickInputDataSource.cpp"
 
 namespace {
+uint8_t xSampleIndex = 0;
+uint8_t ySampleIndex = 0;
+
 uint16_t fakeAnalogRead(uint8_t pin) {
-  return pin == JoystickInputDataSource::kXPin ? 1234 : 3456;
+  if (pin == JoystickInputDataSource::kXPin) {
+    return (xSampleIndex++ % 2 == 0) ? 1000 : 1020;
+  }
+  return (ySampleIndex++ % 2 == 0) ? 2000 : 2040;
 }
 
 }  // namespace
@@ -15,8 +21,8 @@ void setup() {
 
   source.readInto(&data);
 
-  assert(data.joystickX == 1234);
-  assert(data.joystickY == 3456);
+  assert(data.joystickX == 1010);
+  assert(data.joystickY == 2020);
   assert(!data.joystickPressed);
 }
 

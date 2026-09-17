@@ -10,13 +10,14 @@ constexpr int8_t kTransitionDelta[16] = {
 }
 
 RotaryEncoderInputDataSource::RotaryEncoderInputDataSource(
-    DigitalReadFunction digitalReadFunction)
-    : digitalReadFunction_(digitalReadFunction) {}
+    DigitalReadFunction digitalReadFunction, PinModeFunction pinModeFunction)
+    : digitalReadFunction_(digitalReadFunction),
+      pinModeFunction_(pinModeFunction) {}
 
 void RotaryEncoderInputDataSource::begin() {
-  pinMode(kAPin, INPUT);
-  pinMode(kBPin, INPUT);
-  pinMode(kButtonPin, INPUT);
+  pinModeFunction_(kAPin, INPUT_PULLUP);
+  pinModeFunction_(kBPin, INPUT_PULLUP);
+  pinModeFunction_(kButtonPin, INPUT_PULLUP);
   previousState_ = readState();
 }
 
