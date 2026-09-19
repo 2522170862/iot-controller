@@ -93,6 +93,39 @@ void assertEventSerialization() {
                 "{\"id\":\"a1b2c3d4\",\"event\":\"wifi_connected\","
                 "\"ip\":\"192.168.1.5\"}\n") == 0);
 }
+
+void assertRequestQueueCopiesInFifoOrder() {
+  BleProvisioningRequestQueue queue;
+  BleWifiRequest first = {};
+  snprintf(first.id, sizeof(first.id), "%s", "11111111");
+  snprintf(first.ssid, sizeof(first.ssid), "%s", "First");
+  BleWifiRequest second = {};
+  snprintf(second.id, sizeof(second.id), "%s", "22222222");
+  snprintf(second.ssid, sizeof(second.ssid), "%s", "Second");
+
+  assert(queue.push(first));
+  assert(queue.push(second));
+  snprintf(first.ssid, sizeof(first.ssid), "%s", "Changed");
+
+  BleWifiRequest output = {};
+  assert(queue.pop(&output));
+  assert(strcmp(output.id, "11111111") == 0);
+  assert(strcmp(output.ssid, "First") == 0);
+  assert(queue.pop(&output));
+  assert(strcmp(output.id, "22222222") == 0);
+  assert(!queue.pop(&output));
+}
+
+void assertRequestQueueRejectsOverflow() {
+  BleProvisioningRequestQueue queue;
+  BleWifiRequest request = {};
+  for (uint8_t index = 0; index < BleProvisioningRequestQueue::kCapacity;
+       ++index) {
+    request.id[0] = static_cast<char>('0' + index);
+    assert(queue.push(request));
+  }
+  assert(!queue.push(request));
+}
 }  // namespace
 
 void setup() {
@@ -101,6 +134,8 @@ void setup() {
   assertValidationFailures();
   assertOversizedFrameResets();
   assertEventSerialization();
+  assertRequestQueueCopiesInFifoOrder();
+  assertRequestQueueRejectsOverflow();
 }
 
 void loop() {}

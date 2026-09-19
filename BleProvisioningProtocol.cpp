@@ -4,6 +4,33 @@
 #include <stdio.h>
 #include <string.h>
 
+bool BleProvisioningRequestQueue::push(const BleWifiRequest& request) {
+  if (size_ >= kCapacity) {
+    return false;
+  }
+  const uint8_t tail = (head_ + size_) % kCapacity;
+  entries_[tail] = request;
+  ++size_;
+  return true;
+}
+
+bool BleProvisioningRequestQueue::pop(BleWifiRequest* output) {
+  if (output == nullptr || size_ == 0) {
+    return false;
+  }
+  *output = entries_[head_];
+  head_ = (head_ + 1) % kCapacity;
+  --size_;
+  return true;
+}
+
+uint8_t BleProvisioningRequestQueue::size() const { return size_; }
+
+void BleProvisioningRequestQueue::clear() {
+  head_ = 0;
+  size_ = 0;
+}
+
 BleProtocolResult BleProvisioningProtocol::parseRequest(
     const char* json, BleWifiRequest* output) {
   if (json == nullptr || output == nullptr) {

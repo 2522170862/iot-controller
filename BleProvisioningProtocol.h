@@ -28,6 +28,21 @@ struct BleWifiRequest {
   char password[64] = {};
 };
 
+class BleProvisioningRequestQueue {
+ public:
+  static constexpr uint8_t kCapacity = 4;
+
+  bool push(const BleWifiRequest& request);
+  bool pop(BleWifiRequest* output);
+  uint8_t size() const;
+  void clear();
+
+ private:
+  BleWifiRequest entries_[kCapacity] = {};
+  uint8_t head_ = 0;
+  uint8_t size_ = 0;
+};
+
 class BleProvisioningProtocol {
  public:
   static BleProtocolResult parseRequest(const char* json,
