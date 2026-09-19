@@ -3,7 +3,7 @@ board_manager:
     - https://espressif.github.io/arduino-esp32/package_esp32_index.json
 directories:
   builtin:
-    libraries: C:\Users\乔圣正\AppData\Local\Arduino15\libraries
-  data: C:\Users\乔圣正\AppData\Local\Arduino15
-  user: D:\Arduino_Data
+    libraries: C:\Users\25221\AppData\Local\Arduino15\libraries
+  data: C:\Users\25221\AppData\Local\Arduino15
+  user: C:\Users\25221\Documents\Arduino
 locale: zh-cn
