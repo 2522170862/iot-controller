@@ -115,17 +115,13 @@ stepperMotor.stop();                      // 停止并释放线圈
 | --- | --- | --- | --- |
 | 两路继电器 | IN1 | GPIO4 | 模块外部 5V，确认支持 3.3V 控制 |
 | 两路继电器 | IN2 | GPIO5 | 模块外部 5V，确认支持 3.3V 控制 |
-<<<<<<< HEAD
 | MAX4466 | OUT | GPIO8 | 3.3V，模拟输出不得超过 3.3V |
 | MG90S | SIGNAL | GPIO16 | 舵机外部稳定 5V，上电转到 90 度 |
-=======
-| MG90S | SIGNAL | GPIO16 | 舵机外部稳定 5V |
->>>>>>> c5dcb415a78d560488d2d9b2dc4fd366ed60c5f8
 | WS2812B | DIN | GPIO21 | 矩阵外部 5V |
 | 直流电机驱动 | IN1 | GPIO47 | 电机按额定电压外部供电 |
 | 直流电机驱动 | IN2 | GPIO48 | 电机按额定电压外部供电 |
 
-所有外部电源必须与 ESP32-S3 共地。GPIO43、GPIO44 保留给 UART0，不分配给普通外设。
+所有外部电源必须与 ESP32-S3 共地。GPIO43 用作 MQTT 指示灯，GPIO44 用作 BLE 连接指示灯；二者与 UART0 引脚复用，因此调试和下载优先使用开发板原生 USB 接口。
 
 MG90S 由 `ServoMotor` 使用 ESP32-S3 LEDC 输出 50 Hz PWM，不需要 PCA9685 或第三方舵机库。程序上电后执行 `servoMotor.begin(90)`，后续可调用 `servoMotor.setAngle(0)` 至 `servoMotor.setAngle(180)` 设置角度。为减小堵转风险，脉宽限制为 600 至 2400 微秒。
 
@@ -187,6 +183,8 @@ IE14 数据源由 `Rs485EnvironmentDataSource` 管理。它在 UART1 上发送 M
 
 ESP32-S3 只支持 2.4GHz Wi-Fi。当前配置使用实验室的 2.4GHz 网络 `773`，不能使用 `773_5G`。
 
+项目已加入 BLE Wi-Fi 配网：上电时优先连接 NVS 中最后一次验证成功的网络，没有记录时仍使用 `WifiCredentials.h`；手机端可用微信小程序或 Android App 扫描附近 2.4GHz Wi-Fi 并发送新凭据。GPIO3 在验证期间闪烁、连接成功后常亮，GPIO44 在 BLE 客户端连接期间常亮。详见 [UniApp 配网端说明](uniapp-ble-provisioning/README.md)。
+
 全部外设引脚集中定义在 `PeripheralPins.h`。LCD 的显示参数保留在 `DashboardView.h`，RS485 的通信参数保留在 `Rs485EnvironmentDataSource.h`。
 
 ## 首次上板检查
@@ -195,3 +193,10 @@ ESP32-S3 只支持 2.4GHz Wi-Fi。当前配置使用实验室的 2.4GHz 网络 `
 - 画面旋转：调整 `DashboardConfig::kRotation`，可选值为 0、1、2、3。
 - 颜色红蓝颠倒或画面偏移：需要根据具体屏幕模组调整 ST7789 初始化参数。
 - 反复重启：检查供电和串口启动日志，先断开其他大电流执行器。
+
+## 设计与开发文档
+
+- [蓝牙 Wi-Fi 配网使用与验收](uniapp-ble-provisioning/README.md)
+- [蓝牙 Wi-Fi 配网设计](docs/superpowers/specs/2026-09-19-ble-wifi-provisioning-design.md)
+- [蓝牙 Wi-Fi 配网实施计划](docs/superpowers/plans/2026-09-19-ble-wifi-provisioning.md)
+- [项目代码文件职责与函数说明](docs/项目代码文件说明.md)
