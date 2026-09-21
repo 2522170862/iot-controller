@@ -197,6 +197,7 @@ ESP32-S3 只支持 2.4GHz Wi-Fi。当前配置使用实验室的 2.4GHz 网络 `
 ## 设计与开发文档
 
 - [蓝牙 Wi-Fi 配网使用与验收](uniapp-ble-provisioning/README.md)
+- [BLE Wi-Fi 配网模块复用与移植说明](docs/BLE_WiFi配网模块复用与移植说明.md)
 - [蓝牙 Wi-Fi 配网设计](docs/superpowers/specs/2026-09-19-ble-wifi-provisioning-design.md)
 - [蓝牙 Wi-Fi 配网实施计划](docs/superpowers/plans/2026-09-19-ble-wifi-provisioning.md)
 - [项目代码文件职责与函数说明](docs/项目代码文件说明.md)
