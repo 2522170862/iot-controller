@@ -11,20 +11,25 @@ void fakeDigitalWrite(uint8_t pin, uint8_t level) { levels[pin] = level; }
 }  // namespace
 
 void setup() {
-  ConnectionStatusIndicators indicators(3, 37, fakePinMode, fakeDigitalWrite);
+  ConnectionStatusIndicators indicators(3, 43, 44, fakePinMode,
+                                         fakeDigitalWrite);
 
   indicators.begin();
-  assert(modes[3] == OUTPUT && modes[37] == OUTPUT);
-  assert(levels[3] == LOW && levels[37] == LOW);
+  assert(modes[3] == OUTPUT && modes[43] == OUTPUT && modes[44] == OUTPUT);
+  assert(levels[3] == LOW && levels[43] == LOW && levels[44] == LOW);
 
-  indicators.update(true, false);
-  assert(levels[3] == HIGH && levels[37] == LOW);
+  indicators.update(0, false, true, false, false);
+  assert(levels[3] == LOW);
+  indicators.update(250, false, true, false, false);
+  assert(levels[3] == HIGH);
+  indicators.update(500, false, true, false, false);
+  assert(levels[3] == LOW);
 
-  indicators.update(true, true);
-  assert(levels[3] == HIGH && levels[37] == HIGH);
+  indicators.update(500, true, false, true, true);
+  assert(levels[3] == HIGH && levels[43] == HIGH && levels[44] == HIGH);
 
-  indicators.update(false, false);
-  assert(levels[3] == LOW && levels[37] == LOW);
+  indicators.update(750, false, false, false, false);
+  assert(levels[3] == LOW && levels[43] == LOW && levels[44] == LOW);
 }
 
 void loop() {}

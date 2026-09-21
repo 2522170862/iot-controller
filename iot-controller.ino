@@ -1,3 +1,4 @@
+#include "BleProvisioningService.h"
 #include "DashboardView.h"
 #include "ConnectionStatusIndicators.h"
 #include "DcMotor.h"
@@ -16,6 +17,9 @@
 #include "ServoMotor.h"
 #include "StepperMotor.h"
 #include "WiFiDataSource.h"
+#include "WifiCredentialStore.h"
+#include "WifiCredentials.h"
+#include "WifiProvisioningCoordinator.h"
 
 DashboardView dashboard;
 JoystickInputDataSource joystickDataSource;
@@ -26,12 +30,17 @@ RelayController relayController(PeripheralPins::kRelay1, PeripheralPins::kRelay2
 RotaryEncoderInputDataSource rotaryEncoderDataSource;
 Rs485EnvironmentDataSource dataSource;
 WiFiDataSource wifiDataSource;
+WifiCredentialStore wifiCredentialStore;
+WifiProvisioningCoordinator wifiProvisioningCoordinator(&wifiDataSource,
+                                                         &wifiCredentialStore);
+BleProvisioningService bleProvisioningService;
 ServoMotor servoMotor(PeripheralPins::kServoSignal);
 RgbLedMatrix rgbLedMatrix(PeripheralPins::kRgbData);
 MqttService mqttService;
 DcMotor dcMotor(PeripheralPins::kDcMotorIn1, PeripheralPins::kDcMotorIn2);
 ConnectionStatusIndicators connectionIndicators(PeripheralPins::kWifiIndicator,
-                                                 PeripheralPins::kMqttIndicator);
+                                                 PeripheralPins::kMqttIndicator,
+                                                 PeripheralPins::kBleIndicator);
 
 namespace {
 constexpr uint32_t kRefreshIntervalMs = 500;
@@ -121,7 +130,20 @@ void setup() {
   microphoneInputDataSource.begin();
   rotaryEncoderDataSource.begin();
   dataSource.begin();
-  wifiDataSource.begin();
+  WifiCredentialsValue savedCredentials = {};
+  WifiCredentialsValue fallbackCredentials = {};
+  snprintf(fallbackCredentials.ssid, sizeof(fallbackCredentials.ssid), "%s",
+           WifiCredentials::kSsid);
+  snprintf(fallbackCredentials.password,
+           sizeof(fallbackCredentials.password), "%s",
+           WifiCredentials::kPassword);
+  const bool savedCredentialsPresent =
+      wifiCredentialStore.load(&savedCredentials);
+  const WifiCredentialsValue bootCredentials =
+      WifiCredentialPolicy::selectBootCredentials(
+          savedCredentialsPresent, savedCredentials, fallbackCredentials);
+  wifiDataSource.begin(bootCredentials);
+  bleProvisioningService.begin();
   mqttService.begin();
   stepperMotor.begin();
   dcMotor.begin();
@@ -147,9 +169,30 @@ void loop() {
   const uint32_t nowMs = millis();
   dataSource.poll(nowMs);
   wifiDataSource.poll(nowMs);
-  mqttService.poll(nowMs, wifiDataSource.readNetwork().connected);
-  connectionIndicators.update(wifiDataSource.readNetwork().connected,
-                              mqttService.connected());
+  bleProvisioningService.poll(nowMs);
+
+  BleWifiRequest provisioningRequest = {};
+  while (bleProvisioningService.takeRequest(&provisioningRequest)) {
+    if (!wifiProvisioningCoordinator.start(provisioningRequest, nowMs)) {
+      WifiProvisioningEvent busyEvent = {};
+      busyEvent.kind = WifiProvisioningEventKind::kFailed;
+      snprintf(busyEvent.id, sizeof(busyEvent.id), "%s",
+               provisioningRequest.id);
+      snprintf(busyEvent.reason, sizeof(busyEvent.reason), "%s", "busy");
+      bleProvisioningService.enqueueEvent(busyEvent);
+    }
+  }
+  wifiProvisioningCoordinator.poll(nowMs);
+  WifiProvisioningEvent provisioningEvent = {};
+  while (wifiProvisioningCoordinator.takeEvent(&provisioningEvent)) {
+    bleProvisioningService.enqueueEvent(provisioningEvent);
+  }
+
+  const NetworkStatus networkStatus = wifiDataSource.readNetwork();
+  mqttService.poll(nowMs, networkStatus.connected);
+  connectionIndicators.update(
+      nowMs, networkStatus.connected, wifiProvisioningCoordinator.active(),
+      mqttService.connected(), bleProvisioningService.connected());
   microphoneInputDataSource.poll(micros());
   rotaryEncoderDataSource.poll();
   stepperMotor.update(micros());
@@ -174,16 +217,20 @@ void loop() {
       publishEnvironment(environment);
       lastEnvironmentTelemetryMs = nowMs;
     }
+#if 0
+    // Temporarily disable automatic MQTT telemetry for encoder changes.
     if (MqttTelemetrySchedule::encoderChanged(environment.encoderPosition, environment.encoderPressed, lastEncoderPosition, lastEncoderPressed)) {
       publishEncoder(environment);
       lastEncoderPosition = environment.encoderPosition;
       lastEncoderPressed = environment.encoderPressed;
     }
+    // Temporarily disable automatic MQTT telemetry for joystick changes.
     if (MqttTelemetrySchedule::joystickChanged(environment.joystickX, environment.joystickY, lastJoystickX, lastJoystickY)) {
       publishJoystick(environment);
       lastJoystickX = environment.joystickX;
       lastJoystickY = environment.joystickY;
     }
+#endif
     dashboard.update(environment, wifiDataSource.readNetwork(), nowMs);
   }
 }

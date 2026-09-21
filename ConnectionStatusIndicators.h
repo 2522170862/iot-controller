@@ -9,15 +9,20 @@ class ConnectionStatusIndicators {
   using DigitalWriteFunction = void (*)(uint8_t, uint8_t);
 
   ConnectionStatusIndicators(uint8_t wifiPin, uint8_t mqttPin,
+                             uint8_t blePin,
                              PinModeFunction pinModeFunction = pinMode,
                              DigitalWriteFunction digitalWriteFunction = digitalWrite);
 
   void begin();
-  void update(bool wifiConnected, bool mqttConnected);
+  void update(uint32_t nowMs, bool wifiConnected, bool wifiValidating,
+              bool mqttConnected, bool bleConnected);
 
  private:
+  static constexpr uint32_t kWifiBlinkIntervalMs = 250;
+
   uint8_t wifiPin_;
   uint8_t mqttPin_;
+  uint8_t blePin_;
   PinModeFunction pinModeFunction_;
   DigitalWriteFunction digitalWriteFunction_;
 };
