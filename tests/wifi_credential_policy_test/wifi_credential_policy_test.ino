@@ -50,11 +50,21 @@ void assertBootSelection() {
       true, invalidSaved, fallback);
   assert(strcmp(selected.ssid, "Fallback") == 0);
 }
+
+void assertTransactionalSlotSelection() {
+  assert(WifiCredentialSlotPolicy::nextSlot(0) == 1);
+  assert(WifiCredentialSlotPolicy::nextSlot(1) == 0);
+  assert(WifiCredentialSlotPolicy::nextSlot(0xFF) == 0);
+  assert(WifiCredentialSlotPolicy::isSlot(0));
+  assert(WifiCredentialSlotPolicy::isSlot(1));
+  assert(!WifiCredentialSlotPolicy::isSlot(2));
+}
 }  // namespace
 
 void setup() {
   assertValidityRules();
   assertBootSelection();
+  assertTransactionalSlotSelection();
 }
 
 void loop() {}

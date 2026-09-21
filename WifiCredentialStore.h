@@ -15,6 +15,12 @@ class WifiCredentialPolicy {
       const WifiCredentialsValue& fallback);
 };
 
+class WifiCredentialSlotPolicy {
+ public:
+  static bool isSlot(uint8_t slot);
+  static uint8_t nextSlot(uint8_t activeSlot);
+};
+
 class IWifiCredentialStore {
  public:
   virtual ~IWifiCredentialStore() = default;

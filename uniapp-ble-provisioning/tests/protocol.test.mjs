@@ -7,6 +7,7 @@ import {
   createRequestId,
   encodeWifiRequest,
   isReplyForRequest,
+  provisioningFailureReason,
 } from '../utils/protocol.js'
 import { normalizeWifiList } from '../services/wifi-service.js'
 
@@ -92,6 +93,27 @@ test('reply correlation ignores messages from another request', () => {
       'a1b2c3d4',
     ),
     true,
+  )
+})
+
+test('provisioning failure recognizes firmware error event names', () => {
+  assert.equal(
+    provisioningFailureReason({
+      event: 'error',
+      reason: 'invalid_request',
+    }),
+    'invalid_request',
+  )
+  assert.equal(
+    provisioningFailureReason({
+      event: 'wifi_failed',
+      reason: 'timeout',
+    }),
+    'timeout',
+  )
+  assert.equal(
+    provisioningFailureReason({ event: 'wifi_connecting' }),
+    null,
   )
 })
 

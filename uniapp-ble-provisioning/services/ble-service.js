@@ -71,6 +71,7 @@ export class BleService {
 
   async scan(onDevices) {
     await this.openAdapter()
+    await this.stopDiscovery()
     this.devices.clear()
     this.removeDeviceFoundListener()
     this.deviceFoundHandler = (result) => {
@@ -105,43 +106,53 @@ export class BleService {
     this.messageHandler = onMessage
     this.disconnectHandler = onDisconnect
     this.decoder.reset()
+    try {
+      const serviceResult = await callUni('getBLEDeviceServices', { deviceId })
+      const service = (serviceResult.services || []).find((candidate) =>
+        sameUuid(candidate.uuid, BLE_SERVICE_UUID),
+      )
+      if (!service) {
+        throw new Error('该设备没有发现 Wi-Fi 配网服务')
+      }
+      this.serviceId = service.uuid
 
-    const serviceResult = await callUni('getBLEDeviceServices', { deviceId })
-    const service = (serviceResult.services || []).find((candidate) =>
-      sameUuid(candidate.uuid, BLE_SERVICE_UUID),
-    )
-    if (!service) {
-      throw new Error('该设备没有发现 Wi-Fi 配网服务')
+      const characteristicResult = await callUni('getBLEDeviceCharacteristics', {
+        deviceId,
+        serviceId: this.serviceId,
+      })
+      const characteristics = characteristicResult.characteristics || []
+      const rx = characteristics.find(
+        (candidate) =>
+          sameUuid(candidate.uuid, BLE_RX_UUID) &&
+          (candidate.properties?.write || candidate.properties?.writeNoResponse),
+      )
+      const tx = characteristics.find(
+        (candidate) =>
+          sameUuid(candidate.uuid, BLE_TX_UUID) && candidate.properties?.notify,
+      )
+      if (!rx || !tx) {
+        throw new Error('该设备的配网收发特征值不完整')
+      }
+      this.rxCharacteristicId = rx.uuid
+      this.txCharacteristicId = tx.uuid
+
+      this.installConnectionListeners()
+      await callUni('notifyBLECharacteristicValueChange', {
+        state: true,
+        deviceId,
+        serviceId: this.serviceId,
+        characteristicId: this.txCharacteristicId,
+      })
+    } catch (error) {
+      this.removeConnectionListeners()
+      try {
+        await callUni('closeBLEConnection', { deviceId })
+      } catch (_) {
+        // Preserve the discovery/notification error for the page.
+      }
+      this.resetConnection()
+      throw error
     }
-    this.serviceId = service.uuid
-
-    const characteristicResult = await callUni('getBLEDeviceCharacteristics', {
-      deviceId,
-      serviceId: this.serviceId,
-    })
-    const characteristics = characteristicResult.characteristics || []
-    const rx = characteristics.find(
-      (candidate) =>
-        sameUuid(candidate.uuid, BLE_RX_UUID) &&
-        (candidate.properties?.write || candidate.properties?.writeNoResponse),
-    )
-    const tx = characteristics.find(
-      (candidate) =>
-        sameUuid(candidate.uuid, BLE_TX_UUID) && candidate.properties?.notify,
-    )
-    if (!rx || !tx) {
-      throw new Error('该设备的配网收发特征值不完整')
-    }
-    this.rxCharacteristicId = rx.uuid
-    this.txCharacteristicId = tx.uuid
-
-    this.installConnectionListeners()
-    await callUni('notifyBLECharacteristicValueChange', {
-      state: true,
-      deviceId,
-      serviceId: this.serviceId,
-      characteristicId: this.txCharacteristicId,
-    })
   }
 
   async sendWifiCredentials(ssid, password) {

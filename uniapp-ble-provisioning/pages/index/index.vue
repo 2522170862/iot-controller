@@ -117,6 +117,7 @@
 <script>
 import { BleService } from '../../services/ble-service.js'
 import { WifiService } from '../../services/wifi-service.js'
+import { provisioningFailureReason } from '../../utils/protocol.js'
 
 const reasonMessages = {
   busy: '控制器正在处理另一条配网请求',
@@ -247,8 +248,9 @@ export default {
         this.state = 'success'
         return
       }
-      if (message.event === 'wifi_failed' || message.event === 'protocol_error') {
-        this.fail(new Error(reasonMessages[message.reason] || message.reason || '配网失败'))
+      const failureReason = provisioningFailureReason(message)
+      if (failureReason !== null) {
+        this.fail(new Error(reasonMessages[failureReason] || failureReason || '配网失败'))
       }
     },
     retry() {

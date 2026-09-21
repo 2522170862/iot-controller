@@ -105,10 +105,10 @@ MQTT connected: <server>:<port>
 在项目根目录执行：
 
 ```powershell
-node --test uniapp-ble-provisioning/tests/protocol.test.mjs
+npm test --prefix uniapp-ble-provisioning
 ```
 
-测试覆盖 8 位请求 ID、20 字节分包、中文 UTF-8 跨包、多个通知帧、请求关联，以及 Wi-Fi 列表去重/排序/2.4GHz 过滤。
+测试覆盖 8 位请求 ID、20 字节分包、中文 UTF-8 跨包、多个通知帧、请求关联、协议错误、BLE 扫描/失败清理，以及 Wi-Fi 列表去重/排序/2.4GHz 过滤。
 
 ## 九项实机验收
 

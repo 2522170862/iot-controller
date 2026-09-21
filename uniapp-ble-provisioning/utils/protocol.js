@@ -66,6 +66,17 @@ export function isReplyForRequest(message, requestId) {
   return Boolean(message && message.id === requestId)
 }
 
+export function provisioningFailureReason(message) {
+  if (
+    message?.event !== 'wifi_failed' &&
+    message?.event !== 'error' &&
+    message?.event !== 'protocol_error'
+  ) {
+    return null
+  }
+  return message.reason || 'connection_failed'
+}
+
 export class JsonLineDecoder {
   constructor() {
     this.decoder = new TextDecoder()
