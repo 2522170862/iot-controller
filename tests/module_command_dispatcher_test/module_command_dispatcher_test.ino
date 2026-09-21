@@ -2,6 +2,7 @@
 
 #include <Adafruit_NeoPixel.h>
 
+#include "../../DcMotor.cpp"
 #include "../../RelayController.cpp"
 #include "../../MqttMessageProtocol.cpp"
 #include "../../RgbLedMatrix.cpp"
