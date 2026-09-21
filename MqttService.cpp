@@ -16,14 +16,16 @@ void MqttService::begin() {
 void MqttService::poll(uint32_t nowMs, bool wifiConnected) {
   if (!wifiConnected) {
     if (client_.connected()) client_.disconnect();
+    reportConnectionTransition("Wi-Fi offline");
     connectionState_.reset();
     return;
   }
   if (!client_.connected() && connectionState_.shouldAttempt(nowMs, true)) connectAndSubscribe(nowMs);
   if (client_.connected()) {
     client_.loop();
-    publishOne();
+    if (client_.connected()) publishOne();
   }
+  reportConnectionTransition();
 }
 
 bool MqttService::takeIncoming(MqttMessage* message) { return incoming_.pop(message); }
@@ -47,8 +49,49 @@ void MqttService::copyIncoming(const char* topic, const uint8_t* payload, size_t
 
 void MqttService::connectAndSubscribe(uint32_t nowMs) {
   connectionState_.recordAttempt(nowMs);
-  if (client_.connect(MqttCredentials::kClientId, MqttCredentials::kUserName, MqttCredentials::kPassword))
-    client_.subscribe(MqttCredentials::kSubTopic, MqttCredentials::kSubQos);
+  if (!client_.connect(MqttCredentials::kClientId, MqttCredentials::kUserName,
+                       MqttCredentials::kPassword)) {
+    logConnectFailure();
+    return;
+  }
+
+  reportConnectionTransition();
+  if (client_.subscribe(MqttCredentials::kSubTopic, MqttCredentials::kSubQos)) {
+    Serial.print("MQTT subscribed: ");
+    Serial.println(MqttCredentials::kSubTopic);
+  } else {
+    Serial.print("MQTT subscribe failed: ");
+    Serial.println(MqttCredentials::kSubTopic);
+  }
+}
+
+void MqttService::reportConnectionTransition(const char* disconnectReason) {
+  const MqttConnectionEvent event =
+      connectionState_.observeConnection(client_.connected());
+  if (event == MqttConnectionEvent::kConnected) {
+    Serial.print("MQTT connected: ");
+    Serial.print(MqttCredentials::kServer);
+    Serial.print(':');
+    Serial.println(MqttCredentials::kPort);
+    return;
+  }
+  if (event != MqttConnectionEvent::kDisconnected) return;
+
+  if (disconnectReason != nullptr) {
+    Serial.print("MQTT disconnected: ");
+    Serial.println(disconnectReason);
+    return;
+  }
+  Serial.print("MQTT disconnected, state: ");
+  Serial.println(client_.state());
+}
+
+void MqttService::logConnectFailure() {
+  Serial.print("MQTT connect failed, state: ");
+  Serial.print(client_.state());
+  Serial.print(", retry in ");
+  Serial.print(MqttConnectionState::kReconnectIntervalMs);
+  Serial.println(" ms");
 }
 
 void MqttService::publishOne() {

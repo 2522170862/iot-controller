@@ -2,14 +2,12 @@
   <view class="page">
     <view class="hero">
       <text class="title">控制器蓝牙配网</text>
-      <text class="subtitle">用手机把 2.4GHz Wi‑Fi 安全发送给 ESP32-S3</text>
     </view>
 
     <view class="card prerequisites">
       <text class="card-title">开始前请确认</text>
-      <text>1. 控制器已上电，GPIO44 蓝牙灯可用</text>
-      <text>2. 手机蓝牙、Wi‑Fi 和定位服务已打开</text>
-      <text>3. 请选择 2.4GHz Wi‑Fi，当前版本不支持 iOS</text>
+      <text>1. 手机蓝牙、Wi‑Fi 和定位服务已打开</text>
+      <text>2. 请选择 2.4GHz Wi‑Fi，当前版本不支持 iOS</text>
     </view>
 
     <view class="card">

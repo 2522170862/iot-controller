@@ -27,5 +27,7 @@ class MqttService {
   static void onMessage(char* topic, uint8_t* payload, unsigned int length);
   void copyIncoming(const char* topic, const uint8_t* payload, size_t length);
   void connectAndSubscribe(uint32_t nowMs);
+  void reportConnectionTransition(const char* disconnectReason = nullptr);
+  void logConnectFailure();
   void publishOne();
 };

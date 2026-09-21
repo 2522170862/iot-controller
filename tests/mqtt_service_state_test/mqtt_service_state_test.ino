@@ -6,6 +6,17 @@
 #include "../../MqttMessageQueue.cpp"
 #include "../../MqttService.cpp"
 
+constexpr bool connectionEventsAreEdgeTriggered() {
+  MqttConnectionState state;
+  return state.observeConnection(false) == MqttConnectionEvent::kNone &&
+         state.observeConnection(true) == MqttConnectionEvent::kConnected &&
+         state.observeConnection(true) == MqttConnectionEvent::kNone &&
+         state.observeConnection(false) == MqttConnectionEvent::kDisconnected &&
+         state.observeConnection(false) == MqttConnectionEvent::kNone;
+}
+
+static_assert(connectionEventsAreEdgeTriggered());
+
 void setup() {
   MqttConnectionState state;
   assert(!state.shouldAttempt(0, false));
