@@ -1,0 +1,3 @@
+# Local verification artifacts
+.superpowers/sdd/
+tmp/full-ble-build/
