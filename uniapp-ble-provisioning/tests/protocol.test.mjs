@@ -8,6 +8,7 @@ import {
   encodeWifiRequest,
   isReplyForRequest,
 } from '../utils/protocol.js'
+import { normalizeWifiList } from '../services/wifi-service.js'
 
 test('createRequestId returns eight lowercase hexadecimal characters', () => {
   assert.match(createRequestId(), /^[0-9a-f]{8}$/)
@@ -92,4 +93,50 @@ test('reply correlation ignores messages from another request', () => {
     ),
     true,
   )
+})
+
+test('normalizeWifiList keeps the strongest unique 2.4 GHz networks', () => {
+  const normalized = normalizeWifiList([
+    { SSID: '', BSSID: '00', signalStrength: -10, frequency: 2412 },
+    { SSID: '  Lab  ', BSSID: '01', signalStrength: -70, frequency: 2412 },
+    { SSID: 'Lab', BSSID: '02', signalStrength: -35, frequency: 2437 },
+    { SSID: 'FiveG', BSSID: '03', signalStrength: -20, frequency: 5180 },
+    {
+      SSID: 'OpenNet',
+      BSSID: '04',
+      secure: false,
+      signalStrength: -45,
+    },
+    {
+      SSID: 'WeakNet',
+      BSSID: '05',
+      secure: true,
+      signalStrength: -80,
+      frequency: 2462,
+    },
+  ])
+
+  assert.deepEqual(normalized, [
+    {
+      SSID: 'Lab',
+      BSSID: '02',
+      secure: false,
+      signalStrength: -35,
+      frequency: 2437,
+    },
+    {
+      SSID: 'OpenNet',
+      BSSID: '04',
+      secure: false,
+      signalStrength: -45,
+      frequency: undefined,
+    },
+    {
+      SSID: 'WeakNet',
+      BSSID: '05',
+      secure: true,
+      signalStrength: -80,
+      frequency: 2462,
+    },
+  ])
 })
