@@ -52,7 +52,7 @@ bool ModbusEnvironmentProtocol::parseReadAllResponse(
     return false;
   }
 
-  environment->lightLux = readUint32(response + 3) / 100.0f;
+  environment->lightLux = decodeLightLux(readUint32(response + 3));
   environment->temperatureC =
       static_cast<int16_t>(readUint16(response + 7)) / 100.0f;
   environment->pressureHpa = readUint32(response + 9) / 10000.0f;

@@ -1,44 +1,48 @@
 {
-  "name": "物联网控制器蓝牙配网",
-  "appid": "__UNI__IOTPROVISION",
-  "description": "通过 BLE 为 ESP32-S3 物联网控制器配置 2.4GHz Wi-Fi",
-  "versionName": "1.0.0",
-  "versionCode": "100",
-  "transformPx": false,
-  "vueVersion": "3",
-  "app-plus": {
-    "usingComponents": true,
-    "nvueCompiler": "uni-app",
-    "compilerVersion": 3,
-    "distribute": {
-      "android": {
-        "permissions": [
-          "<uses-permission android:name=\"android.permission.BLUETOOTH\"/>",
-          "<uses-permission android:name=\"android.permission.BLUETOOTH_ADMIN\"/>",
-          "<uses-permission android:name=\"android.permission.BLUETOOTH_SCAN\"/>",
-          "<uses-permission android:name=\"android.permission.BLUETOOTH_CONNECT\"/>",
-          "<uses-permission android:name=\"android.permission.ACCESS_WIFI_STATE\"/>",
-          "<uses-permission android:name=\"android.permission.CHANGE_WIFI_STATE\"/>",
-          "<uses-permission android:name=\"android.permission.ACCESS_FINE_LOCATION\"/>"
-        ]
-      }
+    "name" : "物联网控制器蓝牙配网",
+    "appid" : "__UNI__339CD43",
+    "description" : "通过 BLE 为 ESP32-S3 物联网控制器配置 2.4GHz Wi-Fi",
+    "versionName" : "1.0.0",
+    "versionCode" : "100",
+    "transformPx" : false,
+    "vueVersion" : "3",
+    "app-plus" : {
+        "usingComponents" : true,
+        "nvueCompiler" : "uni-app",
+        "compilerVersion" : 3,
+        "distribute" : {
+            "android" : {
+                "permissions" : [
+                    "<uses-permission android:name=\"android.permission.BLUETOOTH\"/>",
+                    "<uses-permission android:name=\"android.permission.BLUETOOTH_ADMIN\"/>",
+                    "<uses-permission android:name=\"android.permission.BLUETOOTH_SCAN\"/>",
+                    "<uses-permission android:name=\"android.permission.BLUETOOTH_CONNECT\"/>",
+                    "<uses-permission android:name=\"android.permission.ACCESS_WIFI_STATE\"/>",
+                    "<uses-permission android:name=\"android.permission.CHANGE_WIFI_STATE\"/>",
+                    "<uses-permission android:name=\"android.permission.ACCESS_FINE_LOCATION\"/>"
+                ],
+                "abiFilters" : [ "arm64-v8a", "x86" ]
+            },
+            "ios" : {
+                "dSYMs" : false
+            }
+        },
+        "modules" : {
+            "Bluetooth" : {}
+        }
+    },
+    "mp-weixin" : {
+        "appid" : "",
+        "setting" : {
+            "urlCheck" : false,
+            "es6" : true
+        },
+        "permission" : {
+            "scope.userLocation" : {
+                "desc" : "用于调用手机扫描附近的 2.4GHz Wi-Fi，配网信息只通过蓝牙发送给你的控制器"
+            }
+        },
+        "requiredPrivateInfos" : [ "getWifiList", "startWifi" ],
+        "usingComponents" : true
     }
-  },
-  "mp-weixin": {
-    "appid": "",
-    "setting": {
-      "urlCheck": false,
-      "es6": true
-    },
-    "permission": {
-      "scope.userLocation": {
-        "desc": "用于调用手机扫描附近的 2.4GHz Wi-Fi，配网信息只通过蓝牙发送给你的控制器"
-      }
-    },
-    "requiredPrivateInfos": [
-      "getWifiList",
-      "startWifi"
-    ],
-    "usingComponents": true
-  }
 }

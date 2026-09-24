@@ -1,5 +1,4 @@
 import {
-  BLE_DEVICE_NAME_PREFIX,
   BLE_RX_UUID,
   BLE_SERVICE_UUID,
   BLE_TX_UUID,
@@ -47,8 +46,12 @@ function sameUuid(left, right) {
   return String(left || '').toUpperCase() === right.toUpperCase()
 }
 
-function deviceName(device) {
-  return device?.name || device?.localName || ''
+function deviceDisplayName(device) {
+  const name = String(device?.name || '').trim()
+  if (name) {
+    return name
+  }
+  return String(device?.localName || '').trim()
 }
 
 export class BleService {
@@ -76,11 +79,16 @@ export class BleService {
     this.removeDeviceFoundListener()
     this.deviceFoundHandler = (result) => {
       for (const device of result?.devices || []) {
-        if (!deviceName(device).startsWith(BLE_DEVICE_NAME_PREFIX)) {
+        const previous = this.devices.get(device.deviceId) || {}
+        const merged = { ...previous, ...device }
+        const displayName = deviceDisplayName(merged)
+        if (!displayName) {
           continue
         }
-        const previous = this.devices.get(device.deviceId) || {}
-        this.devices.set(device.deviceId, { ...previous, ...device })
+        this.devices.set(device.deviceId, {
+          ...merged,
+          displayName,
+        })
       }
       onDevices(
         Array.from(this.devices.values()).sort(

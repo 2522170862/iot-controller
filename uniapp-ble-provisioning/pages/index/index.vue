@@ -26,13 +26,13 @@
           @click="connectDevice(device)"
         >
           <view>
-            <text class="item-title">{{ device.name || device.localName }}</text>
+            <text class="item-title">{{ device.displayName }}</text>
             <text class="item-caption">{{ device.deviceId }}</text>
           </view>
           <text>{{ device.RSSI ?? '--' }} dBm</text>
         </button>
       </view>
-      <text v-else class="empty">尚未发现控制器</text>
+      <text v-else class="empty">尚未发现 BLE 设备</text>
       <text v-if="connectedDeviceName" class="success-text">
         已连接：{{ connectedDeviceName }}
       </text>
@@ -199,7 +199,7 @@ export default {
           },
         )
         this.bleConnected = true
-        this.connectedDeviceName = device.name || device.localName || device.deviceId
+        this.connectedDeviceName = device.displayName || device.deviceId
         this.state = 'device_connected'
       } catch (error) {
         this.fail(error)

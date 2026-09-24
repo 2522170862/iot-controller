@@ -3,6 +3,9 @@
 
 #include "../../ModbusEnvironmentProtocol.cpp"
 
+static_assert(ModbusEnvironmentProtocol::decodeLightLux(600) == 600.0f,
+              "The current IE14 firmware reports light directly in lux");
+
 void setup() {
   uint8_t request[ModbusEnvironmentProtocol::kReadRequestLength] = {0};
   ModbusEnvironmentProtocol::buildReadAllRequest(request);
@@ -20,7 +23,7 @@ void setup() {
   EnvironmentData environment = {};
   assert(ModbusEnvironmentProtocol::parseReadAllResponse(
       response, sizeof(response), &environment));
-  assert(fabsf(environment.lightLux - 6.0f) < 0.001f);
+  assert(fabsf(environment.lightLux - 600.0f) < 0.001f);
   assert(fabsf(environment.temperatureC - 27.30f) < 0.001f);
   assert(fabsf(environment.pressureHpa - 1005.5013f) < 0.001f);
   assert(fabsf(environment.humidityPercent - 52.35f) < 0.001f);

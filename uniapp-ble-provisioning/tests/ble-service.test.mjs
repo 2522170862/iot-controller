@@ -47,3 +47,47 @@ test('failed service discovery closes and clears the partial connection', async 
   assert.equal(closeCalls, 1)
   assert.equal(service.deviceId, '')
 })
+
+test('scan reports named devices without a project prefix and hides unnamed devices', async () => {
+  let deviceFoundHandler = null
+  let reportedDevices = []
+  globalThis.uni = {
+    openBluetoothAdapter: (options) => successful(options),
+    startBluetoothDevicesDiscovery: (options) => successful(options),
+    onBluetoothDeviceFound: (handler) => {
+      deviceFoundHandler = handler
+    },
+    offBluetoothDeviceFound() {},
+  }
+  const service = new BleService()
+
+  await service.scan((devices) => {
+    reportedDevices = devices
+  })
+  deviceFoundHandler({
+    devices: [
+      {
+        deviceId: 'other-sensor',
+        name: 'Other Sensor',
+        localName: '',
+        RSSI: -55,
+      },
+      {
+        deviceId: 'unnamed-device',
+        name: '',
+        localName: '',
+        RSSI: -30,
+      },
+    ],
+  })
+
+  assert.deepEqual(
+    reportedDevices.map(({ deviceId, displayName }) => ({
+      deviceId,
+      displayName,
+    })),
+    [
+      { deviceId: 'other-sensor', displayName: 'Other Sensor' },
+    ],
+  )
+})

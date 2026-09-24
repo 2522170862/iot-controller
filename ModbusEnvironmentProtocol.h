@@ -12,6 +12,10 @@ constexpr uint16_t kRegisterCount = 0x0007;
 constexpr uint8_t kReadRequestLength = 8;
 constexpr uint8_t kReadResponseLength = 19;
 
+constexpr float decodeLightLux(uint32_t rawValue) {
+  return static_cast<float>(rawValue);
+}
+
 void buildReadAllRequest(uint8_t request[kReadRequestLength]);
 bool parseReadAllResponse(const uint8_t* response, uint8_t responseLength,
                           EnvironmentData* environment);
