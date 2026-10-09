@@ -5,7 +5,7 @@
 namespace PeripheralPins {
 constexpr int8_t kJoystickX = 1;
 constexpr int8_t kJoystickY = 2;
-constexpr int8_t kWifiIndicator = 3;
+constexpr int8_t kWifiIndicator = 43;
 constexpr int8_t kRelay1 = 4;
 constexpr int8_t kRelay2 = 5;
 constexpr int8_t kEncoderA = 6;
@@ -20,12 +20,12 @@ constexpr int8_t kSpiMiso = 13;
 constexpr int8_t kRfidSs = 14;
 constexpr int8_t kRfidReset = 15;
 constexpr int8_t kServoSignal = 16;
-constexpr int8_t kRs485Tx = 17;
-constexpr int8_t kRs485Rx = 18;
+constexpr int8_t kRs485Tx = 18;
+constexpr int8_t kRs485Rx = 17;
 constexpr int8_t kRgbData = 21;
 constexpr int8_t kEncoderKey = 38;
-constexpr int8_t kMqttIndicator = 43;
-constexpr int8_t kBleIndicator = 44;
+constexpr int8_t kMqttIndicator = 44;
+constexpr int8_t kBleIndicator = 3;
 constexpr int8_t kStepperIn1 = 39;
 constexpr int8_t kStepperIn2 = 40;
 constexpr int8_t kStepperIn3 = 41;

@@ -43,7 +43,7 @@ ConnectionStatusIndicators connectionIndicators(PeripheralPins::kWifiIndicator,
                                                  PeripheralPins::kBleIndicator);
 
 namespace {
-constexpr uint32_t kRefreshIntervalMs = 500;
+constexpr uint32_t kRefreshIntervalMs = 100;
 }
 
 StepperMotor stepperMotor(
@@ -75,7 +75,7 @@ void publishEnvironment(const EnvironmentData& data) {
   char hash[9] = {};
   makeHash(hash);
   char json[385] = {};
-  snprintf(json, sizeof(json), "{\"hash\":\"%s\",\"type\":\"telemetry\",\"module\":\"environment\",\"temperature\":%.2f,\"humidity\":%.2f,\"pressure\":%.2f,\"light\":%.2f,\"altitude\":%.2f,\"microphone\":%.0f,\"online\":%s}", hash, data.temperatureC, data.humidityPercent, data.pressureHpa, data.lightLux, data.altitudeM, data.microphonePercent, data.sensorConnected ? "true" : "false");
+  snprintf(json, sizeof(json), "{\"hash\":\"%s\",\"type\":\"telemetry\",\"module\":\"environment\",\"temperature\":%.2f,\"humidity\":%.2f,\"pressure\":%.2f,\"light\":%.2f,\"altitude\":%.2f,\"microphone\":%.0f,\"joystickX\":%u,\"joystickY\":%u,\"encoderPosition\":%ld,\"encoderPressed\":%s,\"rfid\":\"%s\",\"online\":%s}", hash, data.temperatureC, data.humidityPercent, data.pressureHpa, data.lightLux, data.altitudeM, data.microphonePercent, data.joystickX, data.joystickY, static_cast<long>(data.encoderPosition), data.encoderPressed ? "true" : "false", data.rfidCard == nullptr ? "" : data.rfidCard, data.sensorConnected ? "true" : "false");
   enqueueJson(json);
 }
 
@@ -117,14 +117,17 @@ void processCommand(const MqttMessage& message, const EnvironmentData& data) {
 
 void setup() {
   Serial.begin(115200);
+
+  dashboard.begin();
+  dashboard.drawStaticLayout();
+
   connectionIndicators.begin();
   relayController.begin();
   pinMode(PeripheralPins::kLcdCs, OUTPUT);
   digitalWrite(PeripheralPins::kLcdCs, HIGH);
   pinMode(PeripheralPins::kRfidSs, OUTPUT);
   digitalWrite(PeripheralPins::kRfidSs, HIGH);
-  dashboard.begin();
-  dashboard.drawStaticLayout();
+
   rfidReader.begin();
   joystickDataSource.begin();
   microphoneInputDataSource.begin();
@@ -149,8 +152,8 @@ void setup() {
   dcMotor.begin();
   rgbLedMatrix.begin();
   Serial.println("WS2812B matrix shows a centered red Yi character");
-  if (servoMotor.begin(90)) {
-    Serial.println("MG90S moved to 90 degrees");
+  if (servoMotor.begin()) {
+    Serial.println("MG90S ready; waiting for a position command");
   }
   EnvironmentData environment = dataSource.readEnvironment();
   joystickDataSource.readInto(&environment);
@@ -159,6 +162,8 @@ void setup() {
   microphoneInputDataSource.readInto(&environment);
   environment.rfidCard = rfidReader.cardUid();
   rotaryEncoderDataSource.readInto(&environment);
+  lastEncoderPosition = environment.encoderPosition;
+  lastEncoderPressed = environment.encoderPressed;
   dashboard.update(environment, wifiDataSource.readNetwork(), 0);
 
   Serial.println("ST7789 RS485 dashboard started");
@@ -217,20 +222,16 @@ void loop() {
       publishEnvironment(environment);
       lastEnvironmentTelemetryMs = nowMs;
     }
-#if 0
-    // Temporarily disable automatic MQTT telemetry for encoder changes.
     if (MqttTelemetrySchedule::encoderChanged(environment.encoderPosition, environment.encoderPressed, lastEncoderPosition, lastEncoderPressed)) {
       publishEncoder(environment);
       lastEncoderPosition = environment.encoderPosition;
       lastEncoderPressed = environment.encoderPressed;
     }
-    // Temporarily disable automatic MQTT telemetry for joystick changes.
     if (MqttTelemetrySchedule::joystickChanged(environment.joystickX, environment.joystickY, lastJoystickX, lastJoystickY)) {
       publishJoystick(environment);
       lastJoystickX = environment.joystickX;
       lastJoystickY = environment.joystickY;
     }
-#endif
     dashboard.update(environment, wifiDataSource.readNetwork(), nowMs);
   }
 }

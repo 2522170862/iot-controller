@@ -37,6 +37,19 @@ class DashboardView {
                       ? 20
                       : static_cast<uint8_t>(percent * 0.2f + 0.5f));
   }
+  static constexpr int16_t overviewContentWidth() { return 226; }
+  static constexpr int16_t pressureCardWidth() { return 226; }
+  static constexpr bool showsRs485StatusCard() { return false; }
+  static constexpr uint32_t kRenderIntervalMs = 500;
+  static constexpr bool renderDue(uint32_t nowMs, uint32_t lastRenderMs,
+                                  bool pageDrawn) {
+    return !pageDrawn || nowMs - lastRenderMs >= kRenderIntervalMs;
+  }
+  static constexpr bool networkBadgeRefreshDue(bool badgeDrawn,
+                                                bool displayedConnected,
+                                                bool connected) {
+    return !badgeDrawn || displayedConnected != connected;
+  }
 
  private:
   Adafruit_ST7789 display_;
@@ -44,16 +57,19 @@ class DashboardView {
   DashboardEventType drawnEventType_;
   bool pendingRfidEvent_;
   bool pageDrawn_;
+  bool networkBadgeDrawn_;
+  bool displayedNetworkConnected_;
+  uint32_t lastRenderMs_;
 
   void drawHeader(const NetworkStatus& network);
+  void drawNetworkBadge(const NetworkStatus& network);
   void drawOverviewPage();
   void drawEventPage(DashboardEventType type);
-  void drawMetricCard(int16_t x, int16_t y, const char* label);
+  void drawMetricCard(int16_t x, int16_t y, int16_t width, int16_t height,
+                      const char* label);
   void drawHumidityGauge(float humidityPercent);
-  void drawCardValue(int16_t x, int16_t y, const char* value,
-                     uint16_t color);
-  void drawRow(int16_t y, const char* label, const char* value,
-               uint16_t valueColor);
+  void drawProgressBar(int16_t x, int16_t y, int16_t width,
+                       uint8_t percent, uint16_t color);
   void updateOverview(const EnvironmentData& environment,
                       const NetworkStatus& network);
   void updateEvent(const EnvironmentData& environment,

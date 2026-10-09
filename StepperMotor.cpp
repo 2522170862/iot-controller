@@ -85,4 +85,3 @@ void StepperMotor::writePhase(uint8_t phaseIndex) {
     digitalWrite(pins_[index], kHalfStepSequence[phaseIndex][index]);
   }
 }
-

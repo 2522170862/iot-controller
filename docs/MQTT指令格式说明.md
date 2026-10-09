@@ -217,6 +217,11 @@
   "light": 600.5,
   "altitude": 340.0,
   "microphone": 18,
+  "joystickX": 2100,
+  "joystickY": 1950,
+  "encoderPosition": 13,
+  "encoderPressed": false,
+  "rfid": "DEADBEEF",
   "online": true
 }
 ```
@@ -226,15 +231,18 @@
 | `temperature` | 摄氏度（°C） |
 | `humidity` | 相对湿度（%） |
 | `pressure` | 气压（hPa） |
-| `light` | 光照强度（lux） |
+| `light` | RS485 光照寄存器原始值，不做 `/100` 缩放 |
 | `altitude` | 海拔（m） |
 | `microphone` | MAX4466 声音强度百分比（0–100） |
+| `joystickX`、`joystickY` | 摇杆滤波后的 12 位 ADC 值 |
+| `encoderPosition`、`encoderPressed` | 编码器累计位置和按键状态 |
+| `rfid` | 最近一次读取到的卡片 UID；尚未读卡时为空字符串 |
 | `online` | RS485 环境传感器本次数据是否有效 |
 
-### 摇杆：滤波后变化超过 20 时上报
+### 摇杆：滤波后变化超过 200 时上报
 
 摇杆 X/Y 每次各连续采样 16 次并取平均值。当前滤波值与上一次已上报值相比，
-任一轴的变化量大于 20 时上报；变化量等于或小于 20 时不发送。
+任一轴相对上次已上报值的变化量大于 200 时上报；变化量等于或小于 200 时不发送。
 
 ```json
 {"hash":"a1b2c3d7","type":"telemetry","module":"joystick","x":2100,"y":1950,"pressed":false}
@@ -250,6 +258,11 @@
 ```json
 {"hash":"a1b2c3d5","type":"telemetry","module":"encoder","position":13,"pressed":false}
 ```
+
+### 麦克风：随环境遥测上报
+
+麦克风强度包含在每 20 秒的 `environment` 遥测中的 `microphone` 字段，
+不会单独发布 `module:"microphone"` 消息。
 
 ### RFID：读到新卡时上报
 

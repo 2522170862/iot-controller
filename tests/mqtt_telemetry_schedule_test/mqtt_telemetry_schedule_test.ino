@@ -2,9 +2,9 @@
 
 #include "../../MqttTelemetrySchedule.h"
 
-static_assert(!MqttTelemetrySchedule::joystickChanged(1020, 2020, 1000, 2000));
-static_assert(MqttTelemetrySchedule::joystickChanged(1021, 2000, 1000, 2000));
-static_assert(MqttTelemetrySchedule::joystickChanged(1000, 1979, 1000, 2000));
+static_assert(!MqttTelemetrySchedule::joystickChanged(1200, 2000, 1000, 2000));
+static_assert(MqttTelemetrySchedule::joystickChanged(1201, 2000, 1000, 2000));
+static_assert(MqttTelemetrySchedule::joystickChanged(1000, 1799, 1000, 2000));
 
 void setup() {
   assert(!MqttTelemetrySchedule::environmentDue(19999, 0));

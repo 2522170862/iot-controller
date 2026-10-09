@@ -22,7 +22,8 @@ class MicrophoneInputDataSource {
 
  private:
   static constexpr uint32_t kSampleIntervalUs = 250;
-  static constexpr uint8_t kSamplesPerWindow = 64;
+  static constexpr uint8_t kSamplesPerWindow = 32;
+  static constexpr uint32_t kPeakHoldUs = 500000;
 
   AnalogReadFunction analogReadFunction_;
   uint16_t minimumSample_ = 4095;
@@ -30,4 +31,5 @@ class MicrophoneInputDataSource {
   uint8_t sampleCount_ = 0;
   uint8_t levelPercent_ = 0;
   uint32_t lastSampleUs_ = 0;
+  uint32_t peakHoldUntilUs_ = 0;
 };

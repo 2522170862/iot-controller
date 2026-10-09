@@ -23,6 +23,7 @@ void setup() {
   EnvironmentData environment = {};
   assert(ModbusEnvironmentProtocol::parseReadAllResponse(
       response, sizeof(response), &environment));
+  // 光照寄存器值应原样交给显示和 MQTT，不能再除以 100。
   assert(fabsf(environment.lightLux - 600.0f) < 0.001f);
   assert(fabsf(environment.temperatureC - 27.30f) < 0.001f);
   assert(fabsf(environment.pressureHpa - 1005.5013f) < 0.001f);

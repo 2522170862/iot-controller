@@ -5,7 +5,7 @@
 class MqttTelemetrySchedule {
  public:
   static constexpr uint32_t kEnvironmentIntervalMs = 20000;
-  static constexpr uint16_t kJoystickChangeThreshold = 20;
+  static constexpr uint16_t kJoystickChangeThreshold = 200;
   static bool environmentDue(uint32_t nowMs, uint32_t lastMs) {
     return nowMs - lastMs >= kEnvironmentIntervalMs;
   }
@@ -19,7 +19,6 @@ class MqttTelemetrySchedule {
     return difference(currentX, previousX) > kJoystickChangeThreshold ||
            difference(currentY, previousY) > kJoystickChangeThreshold;
   }
-
  private:
   static constexpr uint16_t difference(uint16_t first, uint16_t second) {
     return first >= second ? first - second : second - first;

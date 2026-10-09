@@ -14,19 +14,21 @@ constexpr bool eventPolicyWorks() {
 
   if (policy.detect(data, false, 0) != DashboardEventType::kNone) return false;
 
-  data.joystickX = 2100;
+  data.joystickX = 2248;
   if (policy.detect(data, false, 100) != DashboardEventType::kNone) return false;
-  data.joystickX = 2500;
+  data.joystickX = 2048;
+  if (policy.detect(data, false, 150) != DashboardEventType::kNone) return false;
+  data.joystickX = 2249;
   if (policy.detect(data, false, 200) != DashboardEventType::kJoystick) return false;
   if (!policy.active(3199) || policy.active(3200)) return false;
 
   data.encoderPosition = 1;
   if (policy.detect(data, false, 4000) != DashboardEventType::kEncoder) return false;
 
-  data.microphonePercent = 65;
-  if (policy.detect(data, false, 5000) != DashboardEventType::kMicrophone) return false;
-  data.microphonePercent = 70;
-  if (policy.detect(data, false, 5100) != DashboardEventType::kNone) return false;
+  // 麦克风音量只在主页显示，不应抢占事件详情页。
+  data.microphonePercent = 100;
+  if (policy.detect(data, false, 5000) != DashboardEventType::kNone) return false;
+  if (policy.type(5000) != DashboardEventType::kNone) return false;
 
   if (policy.detect(data, true, 6000) != DashboardEventType::kRfid) return false;
   return policy.type(6000) == DashboardEventType::kRfid;

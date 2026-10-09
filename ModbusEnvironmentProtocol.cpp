@@ -52,11 +52,13 @@ bool ModbusEnvironmentProtocol::parseReadAllResponse(
     return false;
   }
 
-  environment->lightLux = decodeLightLux(readUint32(response + 3));
+  environment->lightLux = static_cast<float>(readUint32(response + 3));
   environment->temperatureC =
       static_cast<int16_t>(readUint16(response + 7)) / 100.0f;
   environment->pressureHpa = readUint32(response + 9) / 10000.0f;
   environment->humidityPercent = readUint16(response + 13) / 100.0f;
-  environment->altitudeM = readUint16(response + 15);
+  const int16_t altitudeM =
+      static_cast<int16_t>(readUint16(response + 15));
+  environment->altitudeM = altitudeM < 19 ? 19.0f : altitudeM;
   return true;
 }
