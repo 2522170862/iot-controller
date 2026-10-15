@@ -18,7 +18,8 @@ class MicrophoneInputDataSource {
   void poll(uint32_t nowUs);
   void readInto(EnvironmentData* data) const;
 
-  static uint8_t levelFromPeakToPeak(uint16_t peakToPeak);
+  static uint8_t levelFromPeakToPeak(uint16_t peakToPeak,
+                                   uint16_t noiseFloor = 20);
 
  private:
   static constexpr uint32_t kSampleIntervalUs = 250;
@@ -32,4 +33,11 @@ class MicrophoneInputDataSource {
   uint8_t levelPercent_ = 0;
   uint32_t lastSampleUs_ = 0;
   uint32_t peakHoldUntilUs_ = 0;
+  bool calibrated_ = false;
+  uint32_t calibrationStartedUs_ = 0;
+  uint32_t calibrationSum_ = 0;
+  uint32_t calibrationWindows_ = 0;
+  uint16_t noiseFloor_ = 20;
+  static constexpr uint32_t kSettlingUs = 1000000;
+  static constexpr uint32_t kCalibrationUs = 2000000;
 };

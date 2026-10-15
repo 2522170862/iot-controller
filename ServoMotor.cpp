@@ -5,17 +5,18 @@
 ServoMotor::ServoMotor(uint8_t signalPin) : signalPin_(signalPin) {}
 
 bool ServoMotor::begin() {
-  // An idle low signal sends no position command during startup.
   pinMode(signalPin_, OUTPUT);
   digitalWrite(signalPin_, LOW);
   return true;
 }
 
 bool ServoMotor::setAngle(int angle) {
+  // An explicit command takes priority over an unfinished startup sequence.
+  startupReturnPending_ = false;
   if (!attached_) {
     attached_ = ledcAttach(signalPin_, kPwmFrequencyHz, kPwmResolutionBits);
     if (!attached_) {
-      Serial.println("MG90S PWM initialization failed");
+      Serial.println("Servo PWM initialization failed");
       return false;
     }
   }
@@ -31,37 +32,48 @@ bool ServoMotor::setAngle(int angle) {
   if (!hasCommandedPosition_) {
     if (!ledcWrite(signalPin_, dutyForPulseWidth(target))) return false;
     angle_ = targetAngle;
+    currentPulseWidthUs_ = target;
+    targetAngle_ = targetAngle;
+    lastStepMs_ = millis();
     hasCommandedPosition_ = true;
     return true;
   }
 
-  int32_t currentPulseWidthUs = pulseWidthUsForAngle(angle_);
-  const int32_t direction = target >= currentPulseWidthUs ? 1 : -1;
-
-  if (!ledcWrite(signalPin_, dutyForPulseWidth(
-                                  static_cast<uint16_t>(currentPulseWidthUs)))) {
-    return false;
-  }
-
-  while (currentPulseWidthUs != target) {
-    int32_t nextPulseWidthUs =
-        currentPulseWidthUs + direction * kPulseStepUs;
-    if ((direction > 0 && nextPulseWidthUs > target) ||
-        (direction < 0 && nextPulseWidthUs < target)) {
-      nextPulseWidthUs = target;
-    }
-
-    if (!ledcWrite(signalPin_, dutyForPulseWidth(
-         static_cast<uint16_t>(nextPulseWidthUs)))) {
-      return false;
-    }
-
-    currentPulseWidthUs = nextPulseWidthUs;
-    delay(kStepDelayMs);
-  }
-
-  angle_ = targetAngle;
+  targetAngle_ = targetAngle;
   return true;
+}
+
+void ServoMotor::update(uint32_t nowMs) {
+  if (startupReturnPending_) {
+    if (static_cast<uint32_t>(nowMs - startupCenterAtMs_) <
+        kStartupCenterHoldMs) return;
+    startupReturnPending_ = false;
+    targetAngle_ = 0;
+    lastStepMs_ = nowMs;
+    Serial.println("Servo startup: returning to 0 degrees");
+  }
+  const int32_t targetPulseWidthUs = pulseWidthUsForAngle(targetAngle_);
+  if (!attached_ || !hasCommandedPosition_ ||
+      currentPulseWidthUs_ == targetPulseWidthUs ||
+      static_cast<uint32_t>(nowMs - lastStepMs_) < kStepDelayMs) return;
+  const int32_t direction = targetPulseWidthUs > currentPulseWidthUs_ ? 1 : -1;
+  int32_t nextPulseWidthUs = currentPulseWidthUs_ + direction * kPulseStepUs;
+  if ((direction > 0 && nextPulseWidthUs > targetPulseWidthUs) ||
+      (direction < 0 && nextPulseWidthUs < targetPulseWidthUs)) {
+    nextPulseWidthUs = targetPulseWidthUs;
+  }
+  if (!ledcWrite(signalPin_, dutyForPulseWidth(
+                                static_cast<uint16_t>(nextPulseWidthUs)))) {
+    Serial.println("Servo PWM write failed");
+    lastStepMs_ = nowMs;
+    return;
+  }
+  currentPulseWidthUs_ = nextPulseWidthUs;
+  angle_ = currentPulseWidthUs_ == targetPulseWidthUs
+               ? targetAngle_
+               : static_cast<int>((currentPulseWidthUs_ - kMinimumPulseWidthUs) *
+                                  kPhysicalTravelDegrees / kPhysicalPulseSpanUs);
+  lastStepMs_ = nowMs;
 }
 
 int ServoMotor::angle() const { return angle_; }

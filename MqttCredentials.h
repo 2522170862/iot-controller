@@ -10,5 +10,5 @@ constexpr char kPassword[] = "123456";
 constexpr char kSubTopic[] = "LoTS2C/";
 constexpr char kPubTopic[] = "LoTC2S/";
 constexpr uint8_t kSubQos = 0;
-constexpr char kClientId[] = "iot-controller";
+constexpr char kClientId[] = "iot-controller01";
 }  // namespace MqttCredentials

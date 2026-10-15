@@ -8,14 +8,18 @@ class ServoMotor {
 
   bool begin();
   bool setAngle(int angle);
+  void update(uint32_t nowMs);
   int angle() const;
 
-  static constexpr uint16_t kMinimumPulseWidthUs = 700;
-  // Limit the upper endpoint for this MG90S; 2100 us still overruns it.
-  static constexpr uint16_t kMaximumPulseWidthUs = 2050;
-  static constexpr uint16_t kCenterPulseWidthUs = 1500;
-  static constexpr int kMinimumAngle = 10;
-  static constexpr int kMaximumAngle = 170;
+  // ZP10S measured travel is approximately 270 degrees over 500-2500 us.
+  // Keep MQTT commands limited to 180 physical degrees.
+  static constexpr uint16_t kMinimumPulseWidthUs = 500;
+  static constexpr int kPhysicalTravelDegrees = 270;
+  static constexpr uint16_t kPhysicalPulseSpanUs = 2000;
+  static constexpr uint16_t kMaximumPulseWidthUs = 1833;
+  static constexpr uint16_t kCenterPulseWidthUs = 1166;  // Commanded 90 degrees.
+  static constexpr int kMinimumAngle = 0;
+  static constexpr int kMaximumAngle = 180;
 
   static constexpr uint16_t safePulseWidthUs(uint16_t pulseWidthUs) {
     return pulseWidthUs < kMinimumPulseWidthUs
@@ -30,20 +34,10 @@ class ServoMotor {
         angle < kMinimumAngle
             ? kMinimumAngle
             : (angle > kMaximumAngle ? kMaximumAngle : angle);
-    // Keep the existing angle mapping until the safe upper pulse limit.
-    if (limitedAngle <= 90) {
-      return static_cast<uint16_t>(
-          kMinimumPulseWidthUs +
-          (limitedAngle - kMinimumAngle) *
-              (kCenterPulseWidthUs - kMinimumPulseWidthUs) /
-              (90 - kMinimumAngle));
-    }
-    const uint16_t nominalPulseWidthUs = static_cast<uint16_t>(
-        kCenterPulseWidthUs +
-        (limitedAngle - 90) *
-            (2100 - kCenterPulseWidthUs) /
-            (kMaximumAngle - 90));
-    return safePulseWidthUs(nominalPulseWidthUs);
+    return static_cast<uint16_t>(
+        kMinimumPulseWidthUs +
+        static_cast<uint32_t>(limitedAngle) * kPhysicalPulseSpanUs /
+            kPhysicalTravelDegrees);
   }
 
  private:
@@ -51,13 +45,19 @@ class ServoMotor {
   static constexpr uint8_t kPwmResolutionBits = 14;
   static constexpr uint32_t kPwmMaximumDuty = (1UL << kPwmResolutionBits) - 1;
   static constexpr uint32_t kPwmPeriodUs = 1000000UL / kPwmFrequencyHz;
-  static constexpr uint16_t kPulseStepUs = 21;
+  static constexpr int32_t kPulseStepUs = 21;
   static constexpr uint16_t kStepDelayMs = 20;
 
   uint8_t signalPin_;
   int angle_ = -1;  // Unknown until the first explicit position command.
   bool attached_ = false;
   bool hasCommandedPosition_ = false;
+  int targetAngle_ = 0;
+  int32_t currentPulseWidthUs_ = kCenterPulseWidthUs;
+  uint32_t lastStepMs_ = 0;
+  bool startupReturnPending_ = false;
+  uint32_t startupCenterAtMs_ = 0;
+  static constexpr uint32_t kStartupCenterHoldMs = 1000;
 
   static constexpr uint32_t dutyForPulseWidth(uint16_t pulseWidthUs) {
     return static_cast<uint32_t>(safePulseWidthUs(pulseWidthUs)) *

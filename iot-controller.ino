@@ -116,8 +116,7 @@ void processCommand(const MqttMessage& message, const EnvironmentData& data) {
 }
 
 void setup() {
-  Serial.begin(115200);
-
+ 
   dashboard.begin();
   dashboard.drawStaticLayout();
 
@@ -152,9 +151,7 @@ void setup() {
   dcMotor.begin();
   rgbLedMatrix.begin();
   Serial.println("WS2812B matrix shows a centered red Yi character");
-  if (servoMotor.begin()) {
-    Serial.println("MG90S ready; waiting for a position command");
-  }
+
   EnvironmentData environment = dataSource.readEnvironment();
   joystickDataSource.readInto(&environment);
   lastJoystickX = environment.joystickX;
@@ -167,9 +164,14 @@ void setup() {
   dashboard.update(environment, wifiDataSource.readNetwork(), 0);
 
   Serial.println("ST7789 RS485 dashboard started");
+   Serial.begin(115200);
+  if (servoMotor.begin()) {
+    Serial.println("Servo startup: 90 degrees, then return to 0 degrees");
+  }
 }
 
 void loop() {
+  servoMotor.update(millis());
   static uint32_t lastUpdateMs = 0;
   const uint32_t nowMs = millis();
   dataSource.poll(nowMs);
