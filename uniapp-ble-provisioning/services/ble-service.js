@@ -5,6 +5,7 @@ import {
   JsonLineDecoder,
   createRequestId,
   encodeWifiRequest,
+  encodeMqttRequest,
   isReplyForRequest,
 } from '../utils/protocol.js'
 
@@ -55,7 +56,7 @@ function deviceDisplayName(device) {
 }
 
 export class BleService {
-  constructor() {
+  constructor({ requestTimeoutMs = 45000 } = {}) {
     this.deviceId = ''
     this.serviceId = ''
     this.rxCharacteristicId = ''
@@ -70,6 +71,11 @@ export class BleService {
     this.disconnectHandler = null
     this.adapterOpen = false
     this.scanning = false
+    this.requestTimeoutMs = requestTimeoutMs
+    this.requestTimer = null
+    this.sending = false
+    this.connectionGeneration = 0
+    this.connecting = false
   }
 
   async scan(onDevices) {
@@ -106,9 +112,23 @@ export class BleService {
   }
 
   async connect(deviceId, onMessage, onDisconnect) {
+    if (this.connecting) throw new Error('正在连接设备，请稍候')
+    this.connecting = true
+    try { await this.establishConnection(deviceId, onMessage, onDisconnect) }
+    finally { this.connecting = false }
+  }
+
+  async establishConnection(deviceId, onMessage, onDisconnect) {
+    if (this.deviceId) await this.disconnect()
+    const generation = ++this.connectionGeneration
     await this.openAdapter()
     await this.stopDiscovery()
+    if (generation !== this.connectionGeneration) throw new Error('蓝牙连接已取消')
     await callUni('createBLEConnection', { deviceId, timeout: 10000 })
+    if (generation !== this.connectionGeneration) {
+      try { await callUni('closeBLEConnection', { deviceId }) } catch (_) {}
+      throw new Error('蓝牙连接已取消')
+    }
 
     this.deviceId = deviceId
     this.messageHandler = onMessage
@@ -116,6 +136,7 @@ export class BleService {
     this.decoder.reset()
     try {
       const serviceResult = await callUni('getBLEDeviceServices', { deviceId })
+      if (generation !== this.connectionGeneration) throw new Error('蓝牙连接已断开')
       const service = (serviceResult.services || []).find((candidate) =>
         sameUuid(candidate.uuid, BLE_SERVICE_UUID),
       )
@@ -128,6 +149,7 @@ export class BleService {
         deviceId,
         serviceId: this.serviceId,
       })
+      if (generation !== this.connectionGeneration) throw new Error('蓝牙连接已断开')
       const characteristics = characteristicResult.characteristics || []
       const rx = characteristics.find(
         (candidate) =>
@@ -151,6 +173,7 @@ export class BleService {
         serviceId: this.serviceId,
         characteristicId: this.txCharacteristicId,
       })
+      if (generation !== this.connectionGeneration || !this.deviceId) throw new Error('蓝牙连接已断开')
     } catch (error) {
       this.removeConnectionListeners()
       try {
@@ -164,26 +187,63 @@ export class BleService {
   }
 
   async sendWifiCredentials(ssid, password) {
+    const requestId = createRequestId()
+    return this.sendRequest(requestId, encodeWifiRequest(requestId, ssid, password))
+  }
+
+  async sendMqttConfiguration(configuration) {
+    const requestId = createRequestId()
+    return this.sendRequest(requestId, encodeMqttRequest(requestId, configuration))
+  }
+
+  async sendRequest(requestId, chunks) {
     if (!this.deviceId || !this.rxCharacteristicId) {
       throw new Error('请先连接控制器蓝牙')
     }
-    const requestId = createRequestId()
-    const chunks = encodeWifiRequest(requestId, ssid, password)
+    if (this.currentRequestId || this.sending) throw new Error('正在等待控制器处理上一条配置')
     this.currentRequestId = requestId
-
-    for (const chunk of chunks) {
-      const value = chunk.buffer.slice(
-        chunk.byteOffset,
-        chunk.byteOffset + chunk.byteLength,
-      )
-      await callUni('writeBLECharacteristicValue', {
-        deviceId: this.deviceId,
-        serviceId: this.serviceId,
-        characteristicId: this.rxCharacteristicId,
-        value,
-      })
+    this.sending = true
+    const generation = this.connectionGeneration
+    this.requestTimer = setTimeout(() => {
+      if (this.currentRequestId !== requestId) return
+      const callback = this.messageHandler
+      this.clearRequest()
+      callback?.({ id: requestId, event: 'error', reason: 'device_timeout' })
+    }, this.requestTimeoutMs)
+    try {
+      for (const chunk of chunks) {
+        if (!this.deviceId || generation !== this.connectionGeneration) throw new Error('蓝牙连接已断开')
+        const value = chunk.buffer.slice(chunk.byteOffset, chunk.byteOffset + chunk.byteLength)
+        await callUni('writeBLECharacteristicValue', {
+          deviceId: this.deviceId,
+          serviceId: this.serviceId,
+          characteristicId: this.rxCharacteristicId,
+          value,
+        })
+      }
+      if (generation !== this.connectionGeneration) throw new Error('蓝牙连接已断开')
+      return requestId
+    } catch (error) {
+      if (this.currentRequestId === requestId) this.clearRequest()
+      throw error
+    } finally {
+      if (generation === this.connectionGeneration) this.sending = false
     }
-    return requestId
+  }
+
+  clearRequest() {
+    clearTimeout(this.requestTimer)
+    this.requestTimer = null
+    this.currentRequestId = ''
+  }
+
+  async disconnect() {
+    await this.stopDiscovery()
+    this.removeDeviceFoundListener()
+    const deviceId = this.deviceId
+    this.removeConnectionListeners()
+    this.resetConnection()
+    if (deviceId) await callUni('closeBLEConnection', { deviceId })
   }
 
   async close() {
@@ -239,13 +299,17 @@ export class BleService {
       try {
         const messages = this.decoder.push(result.value)
         for (const message of messages) {
-          if (isReplyForRequest(message, this.currentRequestId)) {
+          if (this.currentRequestId && (isReplyForRequest(message, this.currentRequestId) ||
+              (message.id === '00000000' && message.event === 'error'))) {
+            if (['wifi_connected', 'wifi_failed', 'mqtt_connected', 'mqtt_failed', 'error'].includes(message.event)) this.clearRequest()
             this.messageHandler?.(message)
           }
         }
       } catch (_) {
+        const id = this.currentRequestId
+        this.clearRequest()
         this.messageHandler?.({
-          id: this.currentRequestId,
+          id,
           event: 'protocol_error',
           reason: 'invalid_response',
         })
@@ -254,6 +318,7 @@ export class BleService {
     this.connectionStateHandler = (result) => {
       if (result.deviceId === this.deviceId && !result.connected) {
         const callback = this.disconnectHandler
+        this.removeConnectionListeners()
         this.resetConnection()
         callback?.()
       }
@@ -287,6 +352,9 @@ export class BleService {
   }
 
   resetConnection() {
+    this.connectionGeneration += 1
+    this.clearRequest()
+    this.sending = false
     this.deviceId = ''
     this.serviceId = ''
     this.rxCharacteristicId = ''

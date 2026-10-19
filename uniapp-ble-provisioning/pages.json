@@ -3,13 +3,13 @@
     {
       "path": "pages/index/index",
       "style": {
-        "navigationBarTitleText": "控制器蓝牙配网"
+        "navigationBarTitleText": "设备配置"
       }
     }
   ],
   "globalStyle": {
     "navigationBarTextStyle": "black",
-    "navigationBarBackgroundColor": "#f4f7fb",
-    "backgroundColor": "#f4f7fb"
+    "navigationBarBackgroundColor": "#f5f7f6",
+    "backgroundColor": "#f5f7f6"
   }
 }

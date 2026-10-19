@@ -16,6 +16,7 @@ class BleProvisioningService {
   bool connected() const;
   bool takeRequest(BleWifiRequest* output);
   bool enqueueEvent(const WifiProvisioningEvent& event);
+  bool enqueueStatus(const char* id, const char* event, const char* reason = nullptr);
 
  private:
   class ServerCallbacks;
@@ -38,6 +39,7 @@ class BleProvisioningService {
   uint8_t outgoingHead_ = 0;
   uint8_t outgoingSize_ = 0;
   size_t outgoingOffset_ = 0;
+  uint32_t lastNotifyMs_ = 0;
   portMUX_TYPE queueMux_ = portMUX_INITIALIZER_UNLOCKED;
 
   void onConnected();

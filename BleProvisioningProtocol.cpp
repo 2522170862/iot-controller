@@ -4,6 +4,43 @@
 #include <stdio.h>
 #include <string.h>
 
+namespace {
+template <size_t N>
+bool copyJsonString(JsonVariantConst field, char (&destination)[N]) {
+  if (!field.is<const char*>()) return false;
+  const JsonString text = field.as<JsonString>();
+  if (text.size() >= N || strlen(text.c_str()) != text.size()) return false;
+  memcpy(destination, text.c_str(), text.size() + 1);
+  return true;
+}
+
+BleProtocolResult parseMqtt(JsonDocument& document, BleWifiRequest* output) {
+  output->kind = BleProvisioningKind::kMqtt;
+  MqttConfiguration& value = output->mqtt.value;
+  if (!copyJsonString(document["server"], value.server) ||
+      !copyJsonString(document["username"], value.username) ||
+      !copyJsonString(document["password"], value.password) ||
+      !document["port"].is<uint16_t>() || document["port"].as<uint16_t>() == 0) {
+    return BleProtocolResult::kInvalidMqtt;
+  }
+  value.port = document["port"].as<uint16_t>();
+  // Check the complete candidate with harmless defaults for omitted topics;
+  // the coordinator later substitutes the actual current topics.
+  snprintf(value.subTopic, sizeof(value.subTopic), "LoTS2C/");
+  snprintf(value.pubTopic, sizeof(value.pubTopic), "LoTC2S/");
+  output->mqtt.hasSubTopic = document["subTopic"].isUnbound() == false;
+  output->mqtt.hasPubTopic = document["pubTopic"].isUnbound() == false;
+  output->mqtt.hasSubQos = document["subQos"].isUnbound() == false;
+  if ((output->mqtt.hasSubTopic && !copyJsonString(document["subTopic"], value.subTopic)) ||
+      (output->mqtt.hasPubTopic && !copyJsonString(document["pubTopic"], value.pubTopic)) ||
+      (output->mqtt.hasSubQos && (!document["subQos"].is<uint8_t>() || document["subQos"].as<uint8_t>() > 1))) {
+    return BleProtocolResult::kInvalidMqtt;
+  }
+  if (output->mqtt.hasSubQos) value.subQos = document["subQos"].as<uint8_t>();
+  return validMqttConfiguration(value) ? BleProtocolResult::kOk : BleProtocolResult::kInvalidMqtt;
+}
+}  // namespace
+
 bool BleProvisioningRequestQueue::push(const BleWifiRequest& request) {
   if (size_ >= kCapacity) {
     return false;
@@ -44,7 +81,11 @@ BleProtocolResult BleProvisioningProtocol::parseRequest(
 
   const char* id = document["id"] | "";
   const char* command = document["cmd"] | "";
-  if (!isRequestId(id) || strcmp(command, "configure_wifi") != 0 ||
+  *output = {};
+  if (!isRequestId(id)) return BleProtocolResult::kInvalidRequest;
+  snprintf(output->id, sizeof(output->id), "%s", id);
+  if (strcmp(command, "configure_mqtt") == 0) return parseMqtt(document, output);
+  if (strcmp(command, "configure_wifi") != 0 ||
       !document["ssid"].is<const char*>() ||
       !document["password"].is<const char*>()) {
     return BleProtocolResult::kInvalidRequest;
@@ -61,8 +102,6 @@ BleProtocolResult BleProvisioningProtocol::parseRequest(
     return BleProtocolResult::kInvalidPassword;
   }
 
-  *output = {};
-  snprintf(output->id, sizeof(output->id), "%s", id);
   snprintf(output->ssid, sizeof(output->ssid), "%s", ssid);
   snprintf(output->password, sizeof(output->password), "%s", password);
   return BleProtocolResult::kOk;

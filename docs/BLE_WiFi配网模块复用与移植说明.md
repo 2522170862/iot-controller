@@ -66,6 +66,7 @@ uniapp-ble-provisioning/
 | `utils/protocol.js` | UUID、请求 ID、JSON 编解码和 20 字节分包 |
 | `services/ble-service.js` | BLE 扫描、连接、特征发现、写入和通知 |
 | `services/wifi-service.js` | 微信/Android 手机 Wi-Fi 扫描和列表整理 |
+| `uni_modules/uni-wifi/` | Android 官方 Wi-Fi 插件 1.0.9，提供扫描和定位权限处理 |
 | `pages/index/index.vue` | 配网页面、状态机和用户交互 |
 | `manifest.json` | 微信和 Android 权限配置 |
 | `pages.json` | 页面路由 |
@@ -348,16 +349,16 @@ export const BLE_DEVICE_NAME_PREFIX = 'Greenhouse-'
 固件位置：
 
 ```text
-WifiProvisioningCoordinator.h
+WiFiDataSource.h（IWifiConnection）
 ```
 
 当前为：
 
 ```cpp
-static constexpr uint32_t kValidationTimeoutMs = 15000;
+static constexpr uint32_t kAttemptTimeoutMs = 15000;
 ```
 
-路由器连接较慢时可以适当增大，但不要在 `poll()` 中加入阻塞等待。
+协调器的 `kValidationTimeoutMs` 引用该值，与底层单次连接窗口保持一致。路由器连接较慢时可以适当增大，但不要在 `poll()` 中加入阻塞等待。验证窗口内不能被普通自动重连打断，也不能把上一次连接留下的失败状态当作本次失败；确认成功须核对实际 SSID 和非零 IP。
 
 ### 5.4 NVS 命名空间
 
@@ -423,9 +424,11 @@ utils/
 
 不要把微信 AppID 误填到 ESP32 固件中；它只属于小程序工程。
 
-### 6.3 安装 Wi-Fi 扫描能力
+### 6.3 手机 Wi-Fi 扫描能力
 
-在 HBuilderX/DCloud 插件市场安装官方 `uni-WiFi` 扩展 API。当前代码通过以下接口调用手机扫描：
+当前 Android App 使用随工程导入的官方 `uni-wifi 1.0.9`，来自用户已验证能用的 `wife1.0/ble` 工程。复用时需要同时复制完整的 `uni_modules/uni-wifi/` 目录和 `services/wifi-service.js`，不要只复制页面。初始化时由插件处理定位权限，不再通过 Native.js 读取 Android 系统版本，也不把蓝牙权限当成 Wi-Fi 扫描前提。基座需包含该插件；若出现 UTS 模块缺失，按 HBuilderX 提示编译插件或重新制作自定义基座。
+
+Android 和微信小程序都通过以下接口调用手机扫描（微信使用平台内置实现）：
 
 ```js
 uni.startWifi()
@@ -447,6 +450,7 @@ uni.stopWifi()
 - Android Access Wi-Fi State；
 - Android Change Wi-Fi State；
 - Android Fine Location；
+- Android Coarse Location；
 - 微信 `scope.userLocation` 用途说明；
 - 微信 `getWifiList`、`startWifi` 隐私接口声明。
 
@@ -504,7 +508,7 @@ pages/index/index.vue
 
 1. 复制 `utils/protocol.js`；
 2. 复制 `services/ble-service.js`；
-3. 复制 `services/wifi-service.js`；
+3. 复制 `services/wifi-service.js` 和完整的 `uni_modules/uni-wifi/` 目录；
 4. 复制或改造 `pages/index/index.vue`；
 5. 把页面路径加入原项目 `pages.json`；
 6. 把 Android/微信权限合并进原项目 `manifest.json`；
@@ -657,7 +661,7 @@ pages/index/index.vue
 - [ ] HBuilderX 打开的是 `uniapp-ble-provisioning` 本身；
 - [ ] 根目录存在 `index.html`；
 - [ ] `manifest.json` 配置自己的微信 AppID；
-- [ ] 安装官方 `uni-WiFi` 扩展 API；
+- [ ] 复制完整的 `uni_modules/uni-wifi/`，运行基座包含此插件；
 - [ ] Android 权限已合并；
 - [ ] 微信隐私接口与定位用途已声明；
 - [ ] UUID 与 Arduino 一致；
@@ -751,7 +755,7 @@ arduino-cli compile --config-file tmp/arduino-cli-codex.yaml `
 
 ### 12.6 手机扫描不到 Wi-Fi
 
-检查手机 Wi-Fi、蓝牙和定位服务是否开启；微信/Android 权限是否授权；Android 是否安装官方 `uni-WiFi` 扩展；并使用真机测试。
+检查手机 Wi-Fi、蓝牙和定位服务是否开启；微信/Android 权限是否授权。Android 使用工程内 `uni_modules/uni-wifi/`，需确认目录完整且运行基座包含此插件；基座调试时定位授权对象是 HBuilder 调试基座。插件或 manifest 权限未包含在自定义基座时需要重新制作安装基座。使用真机测试，必要时仍可手动输入 SSID 和密码。每次扫描都需重新注册列表监听，因为当前 Android 插件收到一次列表后会清掉回调。
 
 ### 12.7 找不到 5GHz Wi-Fi
 

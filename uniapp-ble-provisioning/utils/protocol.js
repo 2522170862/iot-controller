@@ -3,7 +3,7 @@ export const BLE_RX_UUID = '6E400002-B5A3-F393-E0A9-E50E24DCCA9E'
 export const BLE_TX_UUID = '6E400003-B5A3-F393-E0A9-E50E24DCCA9E'
 
 const MAX_CHUNK_BYTES = 20
-const MAX_MESSAGE_BYTES = 256
+const MAX_MESSAGE_BYTES = 1024
 
 function appendCodePoint(output, codePoint) {
   if (codePoint <= 0xffff) {
@@ -148,16 +148,46 @@ export function encodeWifiRequest(id, ssid, password) {
     throw new Error('Wi-Fi 密码不能超过 63 字节')
   }
 
-  const frame = encodeUtf8(
-    `${JSON.stringify({
-      id,
-      cmd: 'configure_wifi',
-      ssid,
-      password,
-    })}\n`,
-  )
+  return encodeRequest({ id, cmd: 'configure_wifi', ssid, password })
+}
+
+function validString(value, maximum, allowEmpty = true) {
+  return typeof value === 'string' && !value.includes('\0') &&
+    (allowEmpty || value.length > 0) && encodedLength(value) <= maximum
+}
+
+export function encodeMqttRequest(id, configuration) {
+  if (!/^[0-9a-f]{8}$/.test(id)) throw new Error('请求 ID 必须是 8 位小写十六进制字符')
+  const { server, port, username, password } = configuration
+  if (!validString(server, 127, false) || !/^[a-zA-Z0-9.-]+$/.test(server)) {
+    throw new Error('服务器必须是 IP 或域名，最多 127 字节，不含协议前缀和端口')
+  }
+  if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('端口必须是 1 至 65535 的整数')
+  if (!validString(username, 63)) throw new Error('MQTT 用户名最多 63 字节')
+  if (!validString(password, 127)) throw new Error('MQTT 密码最多 127 字节')
+  const request = { id, cmd: 'configure_mqtt', server, port, username, password }
+  for (const key of ['subTopic', 'pubTopic']) {
+    if (!Object.prototype.hasOwnProperty.call(configuration, key)) continue
+    const topic = configuration[key]
+    if (!validString(topic, 39, false)) throw new Error('主题必须为 1 至 39 字节')
+    const levels = topic.split('/')
+    const valid = key === 'pubTopic' ? !/[+#]/.test(topic) : levels.every((level, index) =>
+      (!level.includes('+') || level === '+') &&
+      (!level.includes('#') || (level === '#' && index === levels.length - 1)))
+    if (!valid) throw new Error('MQTT 主题通配符格式无效')
+    request[key] = topic
+  }
+  if (Object.prototype.hasOwnProperty.call(configuration, 'subQos')) {
+    if (configuration.subQos !== 0 && configuration.subQos !== 1) throw new Error('订阅 QoS 只支持 0 或 1')
+    request.subQos = configuration.subQos
+  }
+  return encodeRequest(request)
+}
+
+function encodeRequest(request) {
+  const frame = encodeUtf8(`${JSON.stringify(request)}\n`)
   if (frame.byteLength > MAX_MESSAGE_BYTES) {
-    throw new Error('配网消息不能超过 256 字节')
+    throw new Error('配置消息不能超过 1024 字节')
   }
 
   const chunks = []
@@ -174,6 +204,7 @@ export function isReplyForRequest(message, requestId) {
 export function provisioningFailureReason(message) {
   if (
     message?.event !== 'wifi_failed' &&
+    message?.event !== 'mqtt_failed' &&
     message?.event !== 'error' &&
     message?.event !== 'protocol_error'
   ) {

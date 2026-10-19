@@ -4,9 +4,9 @@ export default {
 }
 </script>
 
-<style lang="scss">
+<style>
 page {
-  background: #f4f7fb;
+  background: #f5f7f6;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 </style>

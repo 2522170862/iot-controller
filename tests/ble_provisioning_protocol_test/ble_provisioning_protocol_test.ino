@@ -2,6 +2,7 @@
 #include <string.h>
 
 #include "../../BleProvisioningProtocol.cpp"
+#include "../../MqttConfiguration.cpp"
 
 namespace {
 void assertValidSplitRequest() {
@@ -72,7 +73,7 @@ void assertValidationFailures() {
 void assertOversizedFrameResets() {
   BleProvisioningFrameAssembler assembler;
   BleWifiRequest request = {};
-  uint8_t oversized[257];
+  uint8_t oversized[kBleProvisioningMaxMessageBytes + 1];
   memset(oversized, 'x', sizeof(oversized));
   assert(assembler.append(oversized, sizeof(oversized), &request) ==
          BleProtocolResult::kMessageTooLong);

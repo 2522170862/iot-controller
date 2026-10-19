@@ -18,6 +18,7 @@ class MqttMessageQueue {
   bool pushReply(const MqttMessage& message);
   bool pop(MqttMessage* message);
   size_t size() const;
+  void clear() { count_ = 0; }
 
  private:
   MqttMessage messages_[kCapacity] = {};

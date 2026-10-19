@@ -5,6 +5,8 @@
 #include "../../MqttConnectionState.h"
 #include "../../MqttMessageQueue.cpp"
 #include "../../MqttService.cpp"
+#include "../../MqttConfiguration.cpp"
+#include "../../MqttConfigurationStore.cpp"
 
 constexpr bool connectionEventsAreEdgeTriggered() {
   MqttConnectionState state;

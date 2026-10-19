@@ -3,6 +3,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "MqttConfiguration.h"
+
 namespace BleProvisioningUuids {
 constexpr char kService[] = "6E400001-B5A3-F393-E0A9-E50E24DCCA9E";
 constexpr char kRx[] = "6E400002-B5A3-F393-E0A9-E50E24DCCA9E";
@@ -10,7 +12,7 @@ constexpr char kTx[] = "6E400003-B5A3-F393-E0A9-E50E24DCCA9E";
 }  // namespace BleProvisioningUuids
 
 constexpr size_t kBleProvisioningMaxChunkBytes = 20;
-constexpr size_t kBleProvisioningMaxMessageBytes = 256;
+constexpr size_t kBleProvisioningMaxMessageBytes = 1024;
 
 enum class BleProtocolResult : uint8_t {
   kOk,
@@ -19,14 +21,29 @@ enum class BleProtocolResult : uint8_t {
   kInvalidRequest,
   kInvalidSsid,
   kInvalidPassword,
+  kInvalidMqtt,
   kMessageTooLong,
 };
 
-struct BleWifiRequest {
+enum class BleProvisioningKind : uint8_t { kWifi, kMqtt };
+
+struct BleMqttSettings {
+  MqttConfiguration value;
+  bool hasSubTopic = false;
+  bool hasPubTopic = false;
+  bool hasSubQos = false;
+};
+
+struct BleProvisioningRequest {
   char id[9] = {};
   char ssid[33] = {};
   char password[64] = {};
+  BleProvisioningKind kind = BleProvisioningKind::kWifi;
+  BleMqttSettings mqtt;
 };
+
+// Keep existing Wi-Fi-only test sketches and integrations source-compatible.
+using BleWifiRequest = BleProvisioningRequest;
 
 class BleProvisioningRequestQueue {
  public:

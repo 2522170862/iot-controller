@@ -14,6 +14,7 @@ enum class WifiAttemptState : uint8_t {
 
 class IWifiConnection {
  public:
+  static constexpr uint32_t kAttemptTimeoutMs = 15000;
   virtual ~IWifiConnection() = default;
   virtual void connect(const WifiCredentialsValue& credentials,
                        uint32_t nowMs) = 0;

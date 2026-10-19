@@ -6,6 +6,8 @@
 #include "MicrophoneInputDataSource.h"
 #include "MqttMessageProtocol.h"
 #include "MqttService.h"
+#include "MqttConfigurationStore.h"
+#include "MqttProvisioningCoordinator.h"
 #include "MqttTelemetrySchedule.h"
 #include "ModuleCommandDispatcher.h"
 #include "PeripheralPins.h"
@@ -37,6 +39,8 @@ BleProvisioningService bleProvisioningService;
 ServoMotor servoMotor(PeripheralPins::kServoSignal);
 RgbLedMatrix rgbLedMatrix(PeripheralPins::kRgbData);
 MqttService mqttService;
+MqttConfigurationStore mqttConfigurationStore;
+MqttProvisioningCoordinator mqttProvisioningCoordinator(&mqttService, &mqttConfigurationStore);
 DcMotor dcMotor(PeripheralPins::kDcMotorIn1, PeripheralPins::kDcMotorIn2);
 ConnectionStatusIndicators connectionIndicators(PeripheralPins::kWifiIndicator,
                                                  PeripheralPins::kMqttIndicator,
@@ -65,7 +69,7 @@ void makeHash(char hash[9]) { MqttMessageProtocol::generateHash(++mqttSequence, 
 
 void enqueueJson(const char* json, bool reply = false) {
   MqttMessage message = {};
-  snprintf(message.topic, sizeof(message.topic), "LoTC2S/");
+  snprintf(message.topic, sizeof(message.topic), "%s", mqttService.publishTopic());
   snprintf(message.payload, sizeof(message.payload), "%s", json);
   message.isReply = reply;
   if (reply) mqttService.enqueueReply(message); else mqttService.enqueue(message);
@@ -161,7 +165,9 @@ void setup() {
   rotaryEncoderDataSource.readInto(&environment);
   lastEncoderPosition = environment.encoderPosition;
   lastEncoderPressed = environment.encoderPressed;
-  dashboard.update(environment, wifiDataSource.readNetwork(), 0);
+  NetworkStatus initialNetwork = wifiDataSource.readNetwork();
+  initialNetwork.mqttHost = mqttService.server();
+  dashboard.update(environment, initialNetwork, 0);
 
   Serial.println("ST7789 RS485 dashboard started");
    Serial.begin(115200);
@@ -180,13 +186,17 @@ void loop() {
 
   BleWifiRequest provisioningRequest = {};
   while (bleProvisioningService.takeRequest(&provisioningRequest)) {
-    if (!wifiProvisioningCoordinator.start(provisioningRequest, nowMs)) {
-      WifiProvisioningEvent busyEvent = {};
-      busyEvent.kind = WifiProvisioningEventKind::kFailed;
-      snprintf(busyEvent.id, sizeof(busyEvent.id), "%s",
-               provisioningRequest.id);
-      snprintf(busyEvent.reason, sizeof(busyEvent.reason), "%s", "busy");
-      bleProvisioningService.enqueueEvent(busyEvent);
+    const bool mqttRequest = provisioningRequest.kind == BleProvisioningKind::kMqtt;
+    const char* failureEvent = mqttRequest ? "mqtt_failed" : "wifi_failed";
+    if (wifiProvisioningCoordinator.active() || mqttProvisioningCoordinator.active()) {
+      bleProvisioningService.enqueueStatus(provisioningRequest.id, failureEvent, "busy");
+    } else if (mqttRequest && !wifiDataSource.readNetwork().connected) {
+      bleProvisioningService.enqueueStatus(provisioningRequest.id, failureEvent, "wifi_offline");
+    } else if (mqttRequest) {
+      if (!mqttProvisioningCoordinator.start(provisioningRequest, nowMs))
+        bleProvisioningService.enqueueStatus(provisioningRequest.id, failureEvent, "invalid_mqtt");
+    } else if (!wifiProvisioningCoordinator.start(provisioningRequest, nowMs)) {
+      bleProvisioningService.enqueueStatus(provisioningRequest.id, failureEvent, "busy");
     }
   }
   wifiProvisioningCoordinator.poll(nowMs);
@@ -195,8 +205,16 @@ void loop() {
     bleProvisioningService.enqueueEvent(provisioningEvent);
   }
 
-  const NetworkStatus networkStatus = wifiDataSource.readNetwork();
+  NetworkStatus networkStatus = wifiDataSource.readNetwork();
   mqttService.poll(nowMs, networkStatus.connected);
+  mqttProvisioningCoordinator.poll(millis());
+  MqttProvisioningEvent mqttEvent;
+  while (mqttProvisioningCoordinator.takeEvent(&mqttEvent)) {
+    const char* name = mqttEvent.kind == MqttProvisioningEventKind::kConnecting ? "mqtt_connecting" :
+        mqttEvent.kind == MqttProvisioningEventKind::kConnected ? "mqtt_connected" : "mqtt_failed";
+    bleProvisioningService.enqueueStatus(mqttEvent.id, name, mqttEvent.reason);
+  }
+  networkStatus.mqttHost = mqttService.server();
   connectionIndicators.update(
       nowMs, networkStatus.connected, wifiProvisioningCoordinator.active(),
       mqttService.connected(), bleProvisioningService.connected());
@@ -234,6 +252,6 @@ void loop() {
       lastJoystickX = environment.joystickX;
       lastJoystickY = environment.joystickY;
     }
-    dashboard.update(environment, wifiDataSource.readNetwork(), nowMs);
+    dashboard.update(environment, networkStatus, nowMs);
   }
 }

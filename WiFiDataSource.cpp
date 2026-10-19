@@ -33,11 +33,13 @@ void WiFiDataSource::begin(const WifiCredentialsValue& credentials) {
 
 void WiFiDataSource::poll(uint32_t nowMs) {
   const wl_status_t status = WiFi.status();
-  const bool isConnected = status == WL_CONNECTED;
+  const String ip = WiFi.localIP().toString();
+  const bool isConnected = status == WL_CONNECTED &&
+                           WiFi.SSID() == currentCredentials_.ssid &&
+                           ip != "0.0.0.0";
 
   if (isConnected) {
     if (!connected_) {
-      const String ip = WiFi.localIP().toString();
       setLocalIp(ip.c_str());
       Serial.print("Wi-Fi connected, IP: ");
       Serial.println(localIp_);
@@ -53,8 +55,17 @@ void WiFiDataSource::poll(uint32_t nowMs) {
   }
   connected_ = false;
 
-  if (status == WL_CONNECT_FAILED || status == WL_NO_SSID_AVAIL) {
+  // Arduino-ESP32 can retain the previous attempt's failed status after begin().
+  // Only a matching network + IP or this attempt's deadline ends validation.
+  // Do not restart at the normal 10 s reconnect interval during this window.
+  if (attemptState_ == WifiAttemptState::kConnecting) {
+    if (nowMs - lastAttemptMs_ < kAttemptTimeoutMs) {
+      return;
+    }
     attemptState_ = WifiAttemptState::kFailed;
+    lastAttemptMs_ = nowMs;
+    Serial.println("Wi-Fi connection attempt timed out");
+    return;
   }
 
   if (nowMs - lastAttemptMs_ >= kReconnectIntervalMs) {
@@ -74,6 +85,8 @@ NetworkStatus WiFiDataSource::readNetwork() const {
 void WiFiDataSource::connect(const WifiCredentialsValue& credentials,
                             uint32_t nowMs) {
   currentCredentials_ = credentials;
+  connected_ = false;
+  setLocalIp("0.0.0.0");
   WiFi.disconnect(false, false);
   startConnection(nowMs);
 }

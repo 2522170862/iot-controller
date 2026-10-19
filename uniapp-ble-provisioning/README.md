@@ -1,15 +1,16 @@
-# ESP32-S3 蓝牙 Wi-Fi 配网端
+# ESP32-S3 蓝牙设备配置端
 
-本目录是与 `iot-controller.ino` 配套的 UniApp Vue 3 工程。它支持微信小程序和 Android App，通过手机扫描附近的 2.4GHz Wi-Fi，再经 BLE 把用户选择的 SSID 和密码发送给 ESP32-S3。当前版本不支持 iOS。
+本目录是与 `iot-controller.ino` 配套的 UniApp Vue 3 工程，支持微信小程序和 Android App。首页提供蓝牙连接、Wi-Fi 配置和 MQTT 配置三个卡片，点击后在弹窗内操作；已连接蓝牙时可以主动断开。Wi-Fi 仍由手机扫描，MQTT 参数经 BLE 发送给 ESP32-S3，验证成功后保存到板子的 NVS。当前版本不支持 iOS。
+
+MQTT 请求格式、字段长度、可选主题、回退机制和验收步骤见 [`../docs/BLE_MQTT配置说明.md`](../docs/BLE_MQTT配置说明.md)。
 
 ## 运行环境
 
 - HBuilderX（选择支持 Vue 3 的较新版本）；
-- DCloud 官方 `uni-WiFi` 扩展 API；
 - 微信开发者工具和可用的微信小程序 AppID；
 - Android 设备（蓝牙、Wi-Fi、定位功能均已开启）。
 
-在 HBuilderX 中导入本目录后，从插件市场安装官方 `uni-WiFi` 扩展 API。不要安装名字相近的第三方 Wi-Fi 插件。微信小程序发布前，将 `manifest.json` 中 `mp-weixin.appid` 的空值改为自己的 AppID；Android App 仅作为 Android 目标构建。
+在 HBuilderX 中导入本目录。Android App 使用工程内的官方 `uni-wifi 1.0.9` 插件（`uni_modules/uni-wifi`），与用户已验证能扫描的 `wife1.0/ble` 工程相同；不再自行通过 Native.js 读取系统版本。微信小程序继续使用微信的 Wi-Fi API。微信小程序发布前，将 `manifest.json` 中 `mp-weixin.appid` 的空值改为自己的 AppID；Android App 仅作为 Android 目标构建。
 
 ## 构建
 
@@ -24,12 +25,19 @@
 
 ### Android App
 
-1. 安装并勾选官方 `uni-WiFi` 扩展 API；
-2. 选择“发行 → 原生 App-云打包”或本地打包；
-3. 安装后允许“附近设备”和“位置信息”权限；
-4. 若拒绝了“不再询问”，需要在系统应用设置中重新开启权限。
+1. 确认工程保留完整的 `uni_modules/uni-wifi`（已从用户提供的可用工程导入，不用再次下载）；基座调试时选择“运行 → 运行到手机或模拟器”。如果提示缺少 `uni-wifi` 原生模块，按 HBuilderX 提示编译 UTS 插件，或制作包含该插件的自定义基座后运行；
+2. 正式发布选择“发行 → 原生 App-云打包”或本地打包，权限声明随安装包生效；
+3. Android 8 手机允许基座/应用的“位置信息”，并打开手机 Wi-Fi、定位和蓝牙。Wi-Fi 初始化由官方插件申请定位权限，不混入蓝牙权限申请；Android 12+ 蓝牙功能仍需系统“附近设备”授权；
+4. 若拒绝了“不再询问”，需要在系统应用设置中重新开启权限。基座调试时授权对象是 HBuilder 调试基座，而不是独立安装的 App 或微信；
+5. 权限变更不能靠热更新修改已经安装的 APK。自定义基座缺少权限时要重新制作并安装基座；正式 App 修改权限后要重新打包安装。
 
-`manifest.json` 已声明 Bluetooth、Bluetooth Admin、Bluetooth Scan、Bluetooth Connect、Access/Change Wi-Fi State 和 Fine Location 权限。
+`manifest.json` 已声明 Bluetooth、Bluetooth Admin、Bluetooth Scan、Bluetooth Connect、Access/Change Wi-Fi State、Fine/Coarse Location 权限。旧系统不会申请 Android 12 的蓝牙运行时权限。
+
+扫描入口 `services/wifi-service.js` 使用 `uni.startWifi()` → 注册 `uni.onGetWifiList()` → `uni.getWifiList()`；授权/初始化回调和扫描列表分别有 10 秒超时保护。Android 插件的列表回调是单次的，因此每次扫描都会重新注册；结束、超时或退出会清理监听。结果过滤已知 5GHz 网络、同名 SSID 保留最强信号；错误保留方法名和错误码。扫描失败仍可手动填写 SSID 和密码，通过原有 BLE 协议配网。没有复制参考工程里不同的配网 JSON 格式，不会修改现有板端协议，也无需重新烧录 ESP32 固件。
+
+调试时在 HBuilderX 控制台查看 `[Wi-Fi]` 日志：`startWifi: begin/success`、`getWifiList: begin/success`、`onGetWifiList: N networks`。日志不打印 Wi-Fi 密码或网络列表。若卡在初始化，超时信息会指明 `startWifi`，需检查基座是否包含插件；若初始化成功但无列表则显示扫描超时。
+
+Vue 会代理页面 `data()` 内的服务对象；扫描事务使用数字 ID 判断是否仍有效，不能将 `this.pendingScan` 与原始请求对象做 `===` 比较，否则结果和超时都可能被忽略。回归测试覆盖真实 Vue `reactive()`：有 Node/Vue 依赖时直接 `npm test`；HBuilderX 工程可把环境变量 `UNIAPP_VUE_RUNTIME` 指向 HBuilderX 的 `plugins/uniapp-cli-vite/node_modules/vue` 后运行 `npm test`。未找到 Vue 运行库时，这两项集成测试会明确标记为跳过。
 
 ## 配网流程
 
@@ -45,6 +53,12 @@
 
 页面不会把密码写入本地存储，也不会打印完整配网请求；成功后会立即清空内存中的密码输入值。
 
+### 手机扫描的弹窗流程
+
+Wi-Fi 配置窗口保留手动名称/密码输入。点击“手机扫描”后进入独立的网络选择窗口，可重新扫描或返回手动填写；点击网络后进入密码窗口，自动显示只读的所选 Wi-Fi 名称。该密码输入与手动表单独立，切换网络或返回列表时清空，避免沿用其他网络的密码。点击“保存并连接”仍使用原有 BLE 配网消息。取消扫描或蓝牙断开后，迟到的扫描结果不会重新打开窗口或覆盖新状态。
+
+扫描选网流程在提交后等待开发板的 `wifi_connected` / `wifi_failed` 回包，而不是把 BLE 写入成功当作联网成功。收到成功结果后显示网络名、IP 和“确认”，3 秒后自动返回首页；收到失败结果后显示原因，3 秒后回到同一个密码窗口，保留所选网络与本次输入以便修改。点击“确认”立即执行相同返回动作并取消计时；页面退出、切换或 BLE 断开时清理计时，防止旧倒计时影响新操作。没有收到设备回复时只提示结果未确认，不显示成功。手动填写与 MQTT 配置仍保持原有结果显示方式。
+
 ## BLE 协议
 
 | 用途 | UUID |
@@ -53,7 +67,7 @@
 | RX（手机写入） | `6E400002-B5A3-F393-E0A9-E50E24DCCA9E` |
 | TX（控制器通知） | `6E400003-B5A3-F393-E0A9-E50E24DCCA9E` |
 
-消息使用 UTF-8 JSON，每条以换行符 `\n` 结束，每个 BLE 分包不超过 20 字节。单条消息最大 256 字节。请求 ID 为 8 位小写十六进制字符，用来关联同一次配网事务。
+消息使用 UTF-8 JSON，每条以换行符 `\n` 结束，每个 BLE 分包不超过 20 字节。单条 JSON 最大 1024 字节（手机发送端含末尾换行符计数）。请求 ID 为 8 位小写十六进制字符，用来关联同一次配置事务。
 
 请求：
 
@@ -100,6 +114,8 @@ MQTT connected: <server>:<port>
 
 错误密码、连接超时或保存失败不会替换上一次有效凭据。失败后固件会重新连接切换前的网络。Wi-Fi 配网成功不要求 MQTT 同时成功；MQTT 按原有重连策略继续尝试。
 
+失败后修改密码重试时，固件会清空本地连接/IP 缓存，独立验证本次连接，忽略 ESP32 底层可能暂时保留的上次失败状态。只有实际连接的 SSID 与本次配置相符且取得非零 IP 才确认成功；15 秒验证窗口内不会被普通的 10 秒重连定时器打断。该修复涉及开发板固件，必须重新烧录；只更新手机端不能修复旧固件的误报。
+
 ## 自动化检查
 
 在项目根目录执行：
@@ -108,7 +124,7 @@ MQTT connected: <server>:<port>
 npm test --prefix uniapp-ble-provisioning
 ```
 
-测试覆盖 8 位请求 ID、20 字节分包、中文 UTF-8 跨包、多个通知帧、请求关联、协议错误、BLE 扫描/失败清理，以及 Wi-Fi 列表去重/排序/2.4GHz 过滤。
+测试覆盖 Wi-Fi/MQTT 编码、可选主题独立省略、字段长度和端口校验、20 字节分包、UTF-8 跨包、请求互斥与超时、断开/重连、提前到达的回复、弹窗状态，以及手机 Wi-Fi 列表过滤。也可以在本目录直接运行 `node --test`。
 
 ## 九项实机验收
 

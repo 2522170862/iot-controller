@@ -21,7 +21,7 @@ struct WifiProvisioningEvent {
 
 class WifiProvisioningCoordinator {
  public:
-  static constexpr uint32_t kValidationTimeoutMs = 15000;
+  static constexpr uint32_t kValidationTimeoutMs = IWifiConnection::kAttemptTimeoutMs;
 
   WifiProvisioningCoordinator(IWifiConnection* wifi,
                               IWifiCredentialStore* store);

@@ -1,4 +1,5 @@
 #include "../../BleProvisioningProtocol.cpp"
+#include "../../MqttConfiguration.cpp"
 #include "../../BleProvisioningService.cpp"
 
 BleProvisioningService service;

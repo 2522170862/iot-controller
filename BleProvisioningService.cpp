@@ -91,7 +91,7 @@ void BleProvisioningService::poll(uint32_t nowMs) {
     }
   }
 
-  if (!connected_ || txCharacteristic_ == nullptr) {
+  if (!connected_ || txCharacteristic_ == nullptr || nowMs - lastNotifyMs_ < 20) {
     return;
   }
 
@@ -115,6 +115,7 @@ void BleProvisioningService::poll(uint32_t nowMs) {
   portEXIT_CRITICAL(&queueMux_);
 
   if (chunkLength > 0) {
+    lastNotifyMs_ = nowMs;
     txCharacteristic_->setValue(
         reinterpret_cast<const uint8_t*>(chunk), chunkLength);
     txCharacteristic_->notify();
@@ -122,6 +123,11 @@ void BleProvisioningService::poll(uint32_t nowMs) {
 }
 
 bool BleProvisioningService::connected() const { return connected_; }
+
+bool BleProvisioningService::enqueueStatus(const char* id, const char* event, const char* reason) {
+  char frame[kOutgoingFrameCapacity] = {};
+  return BleProvisioningProtocol::makeEvent(id, event, reason, nullptr, frame, sizeof(frame)) && enqueueFrame(frame);
+}
 
 bool BleProvisioningService::takeRequest(BleWifiRequest* output) {
   portENTER_CRITICAL(&queueMux_);
@@ -152,6 +158,7 @@ bool BleProvisioningService::enqueueEvent(
 }
 
 void BleProvisioningService::onConnected() {
+  assembler_.reset();
   connected_ = true;
   advertisingRestartPending_ = false;
   Serial.println("BLE provisioning client connected");
@@ -162,6 +169,10 @@ void BleProvisioningService::onDisconnected() {
   disconnectedMs_ = millis();
   advertisingRestartPending_ = true;
   clearOutgoing();
+  assembler_.reset();
+  portENTER_CRITICAL(&queueMux_);
+  requests_.clear();
+  portEXIT_CRITICAL(&queueMux_);
   Serial.println("BLE provisioning client disconnected");
 }
 
@@ -190,8 +201,10 @@ void BleProvisioningService::onWrite(const uint8_t* data, size_t length) {
     reason = "invalid_password";
   } else if (result == BleProtocolResult::kMessageTooLong) {
     reason = "message_too_long";
+  } else if (result == BleProtocolResult::kInvalidMqtt) {
+    reason = "invalid_mqtt";
   }
-  enqueueProtocolError("00000000", reason);
+  enqueueProtocolError(request.id[0] ? request.id : "00000000", reason);
 }
 
 bool BleProvisioningService::enqueueFrame(const char* frame) {
