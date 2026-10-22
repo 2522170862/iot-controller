@@ -9,7 +9,7 @@
     <view class="connection-strip">
       <view class="connection-copy">
         <view class="dot" :class="{ online: bleConnected }"></view>
-        <text>{{ bleConnected ? connectedDeviceName : '尚未连接开发板' }}</text>
+        <text>{{ bleConnected ? connectedDeviceName : '尚未连接设备' }}</text>
       </view>
       <button v-if="bleConnected" class="disconnect-link" :disabled="state === 'disconnecting'" @click="disconnectDevice">断开连接</button>
       <text v-else class="strip-caption">请靠近设备</text>
@@ -19,7 +19,7 @@
       <view class="module-icon bluetooth-icon"><text>BT</text></view>
       <view class="module-copy">
         <text class="module-title">蓝牙连接</text>
-        <text class="module-description">{{ bleConnected ? '查看连接设备或断开连接' : '搜索并连接附近的开发板' }}</text>
+        <text class="module-description">{{ bleConnected ? '查看连接设备或断开连接' : '搜索并连接附近的设备' }}</text>
       </view>
       <text class="badge" :class="{ connected: bleConnected }">{{ bleConnected ? '已连接' : '未连接' }}</text>
       <text class="chevron">›</text>
@@ -56,7 +56,7 @@
     </view>
 
     <view v-if="modal" class="modal-mask" @click="closeModal">
-      <view class="modal-panel" :class="{ 'password-panel': modal === 'wifi-password', 'result-panel': modal === 'wifi-result' }" @click.stop>
+      <view class="modal-panel" :class="{ 'password-panel': modal === 'wifi-password', 'result-panel': modal === 'wifi-result' || modal === 'mqtt-result' }" @click.stop>
         <view class="modal-header">
           <view>
             <text class="modal-kicker">设备连接设置</text>
@@ -72,7 +72,7 @@
               <button class="danger-button" :disabled="state === 'disconnecting'" @click="disconnectDevice">断开蓝牙连接</button>
             </view>
             <view v-else>
-              <text class="hint">开启手机蓝牙，点击搜索后选择你的开发板。系统授权提示请允许。</text>
+              <text class="hint">开启手机蓝牙，点击搜索后选择你的设备。系统授权提示请允许。</text>
               <button class="secondary-button scan-button" :disabled="busy" @click="searchDevices">{{ state === 'searching_device' ? '重新搜索' : '搜索附近设备' }}</button>
               <view v-if="devices.length" class="device-list">
                 <button v-for="device in devices" :key="device.deviceId" class="list-item" :disabled="busy" @click="connectDevice(device)">
@@ -88,7 +88,7 @@
           </view>
 
           <view v-if="modal === 'wifi'">
-            <text class="hint">请选择 2.4GHz Wi-Fi。连接成功后，开发板会保存此网络。</text>
+            <text class="hint">请选择 2.4GHz Wi-Fi。连接成功后，设备会保存此网络。</text>
             <view class="section-heading">
               <text class="section-label">附近网络</text>
               <button class="small-button" :disabled="!bleConnected || busy" @click="scanWifi">手机扫描</button>
@@ -118,7 +118,7 @@
           </view>
 
           <view v-if="modal === 'wifi-password'">
-            <text class="hint">已选择以下网络，填写密码后将通过蓝牙发送给开发板。</text>
+            <text class="hint">已选择以下网络，填写密码后将通过蓝牙发送给设备。</text>
             <view class="selected-network">
               <text class="item-caption">Wi-Fi 名称</text>
               <text class="selected-ssid">{{ selectedWifi ? selectedWifi.SSID : '' }}</text>
@@ -137,8 +137,16 @@
             <text class="hint result-return">{{ wifiResult.success ? '3 秒后自动返回主页面，或点击确认立即返回' : '3 秒后自动返回密码输入窗口，或点击确认立即返回' }}</text>
           </view>
 
+          <view v-if="modal === 'mqtt-result' && mqttResult" class="wifi-result-content">
+            <view class="result-icon" :class="{ 'result-ok': mqttResult.success }"><text>{{ mqttResult.success ? '✓' : '!' }}</text></view>
+            <text class="result-title">{{ mqttResult.success ? 'MQTT 连接成功' : 'MQTT 配置未完成' }}</text>
+            <text class="result-network">{{ mqttResult.server }}</text>
+            <text class="result-detail">{{ mqttResult.message }}</text>
+            <text class="hint result-return">{{ mqttResult.success ? '3 秒后自动返回主页面，或点击确认立即返回' : '3 秒后自动返回 MQTT 配置窗口，或点击确认立即返回' }}</text>
+          </view>
+
           <view v-if="modal === 'mqtt'">
-            <text class="hint">开发板需先连上 Wi-Fi。新服务器连接验证成功后才会保存；失败时恢复原配置。</text>
+            <text class="hint">设备需先连上 Wi-Fi。新服务器连接验证成功后才会保存；失败时恢复原配置。</text>
             <label class="field"><text>服务器地址</text><input v-model.trim="mqttServer" :disabled="busy" maxlength="127" placeholder="IP 或域名，例如 mqtt.example.com" /></label>
             <label class="field"><text>端口</text><input v-model="mqttPort" :disabled="busy" type="number" maxlength="5" placeholder="1883" /></label>
             <label class="field"><text>用户名</text><input v-model="mqttUsername" :disabled="busy" maxlength="63" placeholder="无认证时留空" /></label>
@@ -153,12 +161,15 @@
             <text class="hint transport-note">当前使用普通 MQTT TCP 连接，不支持 TLS。</text>
           </view>
 
-          <view v-if="modal !== 'wifi-result' && (busy || errorMessage || state === 'success')" class="modal-feedback" :class="{ error: !!errorMessage, success: state === 'success' }">
+          <view v-if="modal !== 'wifi-result' && modal !== 'mqtt-result' && (busy || errorMessage || state === 'success')" class="modal-feedback" :class="{ error: !!errorMessage, success: state === 'success' }">
             <text>{{ errorMessage || statusText }}</text>
             <text v-if="finalIp && (modal === 'wifi' || modal === 'wifi-password')" class="ip">设备 IP：{{ finalIp }}</text>
           </view>
         </scroll-view>
-        <view v-if="modal === 'wifi-result'" class="modal-footer">
+        <view v-if="modal === 'mqtt-result'" class="modal-footer">
+          <button class="primary-button submit-button" @click="confirmMqttResult">确认</button>
+        </view>
+        <view v-else-if="modal === 'wifi-result'" class="modal-footer">
           <button class="primary-button submit-button" @click="confirmWifiResult">确认</button>
         </view>
         <view v-else-if="modal === 'wifi-list'" class="modal-footer">

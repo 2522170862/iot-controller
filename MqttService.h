@@ -3,6 +3,7 @@
 #include <PubSubClient.h>
 #include <WiFi.h>
 
+#include "DeviceIdentity.h"
 #include "MqttConnectionState.h"
 #include "MqttMessageQueue.h"
 #include "MqttConfiguration.h"
@@ -31,6 +32,7 @@ class MqttService : public IMqttConfigurationConnection {
   MqttMessageQueue incoming_;
   MqttMessageQueue outgoing_;
   MqttConfiguration configuration_;
+  char clientId_[DeviceIdentity::kNameCapacity] = {};
   MqttConfigurationAttempt attempt_ = MqttConfigurationAttempt::kConnecting;
   bool subscribed_ = false;
   const char* failure_ = "connection_failed";

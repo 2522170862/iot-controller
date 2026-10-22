@@ -120,7 +120,73 @@ void backgroundAttemptTimesOutAndRecovers(uint32_t started) {
   assert(wifi.readNetwork().connected);
 }
 
+void switchingCancelsAnUnassociatedAttemptBeforeConfiguring() {
+  WiFi = {};
+  WiFi.driverStarted = true;
+  WiFi.connecting = true;
+  WiFi.configuredSsid = "Old";
+  WiFi.configuredPassword = "old-password";
+  WiFiDataSource wifi;
+  Store store;
+  WifiProvisioningCoordinator coordinator(&wifi, &store);
+  assert(coordinator.start(request("44444444", "correct-pass"), 100));
+  assert(WiFi.configuredSsid == "Target" && "old association must stop before applying new SSID");
+  assert(WiFi.configuredPassword == "correct-pass");
+  assert(WiFi.rejectedConfigurations == 0);
+  assert(!WiFi.autoReconnect);
+  WiFi.actualSsid = WiFi.configuredSsid;
+  WiFi.rawStatus = WL_CONNECTED;
+  WiFi.ip = "192.168.5.53";
+  wifi.poll(200);
+  coordinator.poll(200);
+  assert(!coordinator.active() && store.saves == 1);
+  assert(strcmp(store.saved.password, "correct-pass") == 0);
+}
+
+void sameNetworkPasswordChangeCancelsTheOldAuthentication() {
+  WiFi = {};
+  WiFi.driverStarted = true;
+  WiFi.connecting = true;
+  WiFi.configuredSsid = "Target";
+  WiFi.configuredPassword = "wrong-pass";
+  WiFiDataSource wifi;
+  WifiCredentialsValue credentials = {};
+  snprintf(credentials.ssid, sizeof(credentials.ssid), "Target");
+  snprintf(credentials.password, sizeof(credentials.password), "correct-pass");
+  wifi.connect(credentials, 100);
+  assert(WiFi.configuredPassword == "correct-pass");
+  assert(WiFi.rejectedConfigurations == 0);
+}
+
+void driverErrorsDoNotPretendAConnectionWasStarted() {
+  for (int failure = 0; failure < 3; ++failure) {
+    WiFi = {};
+    WiFi.stopResult = failure != 0;
+    WiFi.startResult = failure != 1;
+    WiFi.connectResult = failure != 2;
+    WiFiDataSource wifi;
+    WifiCredentialsValue credentials = {};
+    snprintf(credentials.ssid, sizeof(credentials.ssid), "Target");
+    wifi.connect(credentials, 100);
+    assert(wifi.attemptState() == WifiAttemptState::kFailed);
+    assert(!wifi.readNetwork().connected);
+    assert(strcmp(wifi.localIp(), "0.0.0.0") == 0);
+    const int attempts = WiFi.beginCount;
+    // A failed stop/configure may leave the SDK reporting the old association.
+    WiFi.rawStatus = WL_CONNECTED;
+    WiFi.actualSsid = "Target";
+    WiFi.ip = "192.168.1.2";
+    wifi.poll(101);
+    assert(wifi.attemptState() == WifiAttemptState::kFailed);
+    assert(!wifi.readNetwork().connected);
+    assert(WiFi.beginCount == attempts);  // No tight retry loop on driver errors.
+  }
+}
+
 int main() {
+  switchingCancelsAnUnassociatedAttemptBeforeConfiguring();
+  sameNetworkPasswordChangeCancelsTheOldAuthentication();
+  driverErrorsDoNotPretendAConnectionWasStarted();
   retryDoesNotConsumePreviousFailure(WL_CONNECT_FAILED);
   retryDoesNotConsumePreviousFailure(WL_NO_SSID_AVAIL);
   staleConnectionCannotConfirmNewNetwork();

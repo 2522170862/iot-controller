@@ -1,14 +1,15 @@
 #include "MqttService.h"
 
+#include <Esp.h>
 #include <string.h>
 
-#include "MqttCredentials.h"
 #include "MqttConfigurationStore.h"
 
 MqttService* MqttService::activeService_ = nullptr;
 
 void MqttService::begin() {
   activeService_ = this;
+  DeviceIdentity::formatName(ESP.getEfuseMac(), clientId_);
   MqttConfigurationStore store;
   if (!store.load(&configuration_)) configuration_ = defaultMqttConfiguration();
   client_.setServer(configuration_.server, configuration_.port);
@@ -79,7 +80,14 @@ void MqttService::copyIncoming(const char* topic, const uint8_t* payload, size_t
 
 void MqttService::connectAndSubscribe(uint32_t nowMs) {
   connectionState_.recordAttempt(nowMs);
-  if (!client_.connect(MqttCredentials::kClientId,
+  // configuration_.password="Ahau&1234";
+  Serial.print("MQTT client ID: ");
+  Serial.println(clientId_);
+  Serial.printf("MQTT login: server=%s:%u, username=[%s], password=[%s]\n",
+                configuration_.server, static_cast<unsigned>(configuration_.port),
+                configuration_.username,
+                configuration_.username[0] ? configuration_.password : "");
+  if (!client_.connect(clientId_,
                        configuration_.username[0] ? configuration_.username : nullptr,
                        configuration_.username[0] ? configuration_.password : nullptr)) {
     attempt_ = MqttConfigurationAttempt::kFailed;

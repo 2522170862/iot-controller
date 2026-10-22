@@ -9,18 +9,26 @@ import {
   isReplyForRequest,
 } from '../utils/protocol.js'
 
-function callUni(method, options = {}) {
+const REQUESTED_MTU = 247
+// Arduino-ESP32 3.3.3 defers onWrite() by a connection interval plus 5 ms.
+// Native write completion alone must not trigger immediate back-to-back writes.
+const WRITE_SETTLE_MS = 120
+
+function callUni(method, options = {}, timeoutMs = 0) {
   return new Promise((resolve, reject) => {
     const api = uni[method]
     if (typeof api !== 'function') {
       reject(new Error(`当前平台不支持 ${method}`))
       return
     }
-    api({
-      ...options,
-      success: resolve,
-      fail: (error) => reject(toUserError(error)),
-    })
+    const timer = timeoutMs ? setTimeout(() => reject(new Error(`${method} 回调超时`)), timeoutMs) : null
+    try {
+      api({
+        ...options,
+        success: value => { clearTimeout(timer); resolve(value) },
+        fail: error => { clearTimeout(timer); reject(toUserError(error)) },
+      })
+    } catch (error) { clearTimeout(timer); reject(error) }
   })
 }
 
@@ -56,7 +64,7 @@ function deviceDisplayName(device) {
 }
 
 export class BleService {
-  constructor({ requestTimeoutMs = 45000 } = {}) {
+  constructor({ requestTimeoutMs = 45000, writeTimeoutMs = 6000, mtuTimeoutMs = 1500 } = {}) {
     this.deviceId = ''
     this.serviceId = ''
     this.rxCharacteristicId = ''
@@ -76,6 +84,13 @@ export class BleService {
     this.sending = false
     this.connectionGeneration = 0
     this.connecting = false
+    this.writeTimeoutMs = writeTimeoutMs
+    this.mtuTimeoutMs = mtuTimeoutMs
+    this.writePayloadBytes = 20
+    this.pendingWrite = null
+    this.writeToken = 0
+    this.requiresReconnect = false
+    this.sendingLastChunk = false
   }
 
   async scan(onDevices) {
@@ -133,6 +148,7 @@ export class BleService {
     this.deviceId = deviceId
     this.messageHandler = onMessage
     this.disconnectHandler = onDisconnect
+    this.writePayloadBytes = 20
     this.decoder.reset()
     try {
       const serviceResult = await callUni('getBLEDeviceServices', { deviceId })
@@ -154,7 +170,7 @@ export class BleService {
       const rx = characteristics.find(
         (candidate) =>
           sameUuid(candidate.uuid, BLE_RX_UUID) &&
-          (candidate.properties?.write || candidate.properties?.writeNoResponse),
+          candidate.properties?.write,
       )
       const tx = characteristics.find(
         (candidate) =>
@@ -174,6 +190,8 @@ export class BleService {
         characteristicId: this.txCharacteristicId,
       })
       if (generation !== this.connectionGeneration || !this.deviceId) throw new Error('蓝牙连接已断开')
+      await this.negotiateMtu(generation)
+      if (generation !== this.connectionGeneration || !this.deviceId) throw new Error('蓝牙连接已断开')
     } catch (error) {
       this.removeConnectionListeners()
       try {
@@ -188,50 +206,102 @@ export class BleService {
 
   async sendWifiCredentials(ssid, password) {
     const requestId = createRequestId()
-    return this.sendRequest(requestId, encodeWifiRequest(requestId, ssid, password))
+    return this.sendRequest(requestId, encodeWifiRequest(requestId, ssid, password, this.writePayloadBytes))
   }
 
   async sendMqttConfiguration(configuration) {
     const requestId = createRequestId()
-    return this.sendRequest(requestId, encodeMqttRequest(requestId, configuration))
+    return this.sendRequest(requestId, encodeMqttRequest(requestId, configuration, this.writePayloadBytes))
   }
 
   async sendRequest(requestId, chunks) {
     if (!this.deviceId || !this.rxCharacteristicId) {
       throw new Error('请先连接控制器蓝牙')
     }
+    if (this.requiresReconnect) throw new Error('上次蓝牙发送未完成，请断开蓝牙后重新连接')
     if (this.currentRequestId || this.sending) throw new Error('正在等待控制器处理上一条配置')
+    this.decoder.reset()
     this.currentRequestId = requestId
     this.sending = true
     const generation = this.connectionGeneration
+    this.sendingLastChunk = false
+    console.info(`[BLE TX] begin id=${requestId} packets=${chunks.length} payload=${this.writePayloadBytes}`)
     this.requestTimer = setTimeout(() => {
       if (this.currentRequestId !== requestId) return
-      const callback = this.messageHandler
-      this.clearRequest()
-      callback?.({ id: requestId, event: 'error', reason: 'device_timeout' })
+      this.requiresReconnect = this.sending
+      this.clearRequest(new Error('等待控制器回复超时'))
+      this.deliverMessage({ id: requestId, event: 'error', reason: 'device_timeout' })
     }, this.requestTimeoutMs)
     try {
-      for (const chunk of chunks) {
-        if (!this.deviceId || generation !== this.connectionGeneration) throw new Error('蓝牙连接已断开')
+      for (let sequence = 0; sequence < chunks.length; sequence++) {
+        if (!this.deviceId || generation !== this.connectionGeneration || this.currentRequestId !== requestId) throw new Error('蓝牙配置已取消或连接已断开')
+        const chunk = chunks[sequence]
         const value = chunk.buffer.slice(chunk.byteOffset, chunk.byteOffset + chunk.byteLength)
-        await callUni('writeBLECharacteristicValue', {
-          deviceId: this.deviceId,
-          serviceId: this.serviceId,
-          characteristicId: this.rxCharacteristicId,
-          value,
-        })
+        this.sendingLastChunk = sequence === chunks.length - 1
+        console.info(`[BLE TX] id=${requestId} seq=${sequence} bytes=${chunk.byteLength}`)
+        await this.writeChunk(requestId, value, this.sendingLastChunk)
+        if (!this.sendingLastChunk) await new Promise(resolve => setTimeout(resolve, WRITE_SETTLE_MS))
       }
       if (generation !== this.connectionGeneration) throw new Error('蓝牙连接已断开')
       return requestId
     } catch (error) {
-      if (this.currentRequestId === requestId) this.clearRequest()
+      if (this.currentRequestId === requestId) {
+        this.requiresReconnect = true // A partial JSON frame may still be on the device.
+        this.clearRequest(error)
+      }
       throw error
     } finally {
       if (generation === this.connectionGeneration) this.sending = false
     }
   }
 
-  clearRequest() {
+  async negotiateMtu(generation) {
+    let actualMtu
+    if (typeof uni.setBLEMTU === 'function') {
+      try {
+        const result = await callUni('setBLEMTU', { deviceId: this.deviceId, mtu: REQUESTED_MTU }, this.mtuTimeoutMs)
+        actualMtu = result?.mtu
+      } catch (_) { /* Keep the conservative payload if negotiation is unsupported. */ }
+    }
+    if (generation !== this.connectionGeneration) return
+    if (typeof uni.getBLEMTU === 'function') {
+      try {
+        const result = await callUni('getBLEMTU', { deviceId: this.deviceId, writeType: 'write' }, this.mtuTimeoutMs)
+        actualMtu = result?.mtu
+      } catch (_) { actualMtu = undefined }
+    }
+    if (generation !== this.connectionGeneration) return
+    this.writePayloadBytes = Number.isInteger(actualMtu) && actualMtu >= 23 && actualMtu <= 517
+      ? Math.min(actualMtu - 3, REQUESTED_MTU - 3) : 20
+    console.info(`[BLE MTU] payload=${this.writePayloadBytes} bytes`)
+  }
+
+  writeChunk(requestId, value, last) {
+    return new Promise((resolve, reject) => {
+      const token = ++this.writeToken
+      let settled = false
+      const finish = error => {
+        if (settled) return
+        settled = true
+        clearTimeout(timer)
+        // Compare a scalar, not object identity: Vue wraps service state in proxies.
+        if (this.pendingWrite?.token === token) this.pendingWrite = null
+        if (error) reject(error); else resolve()
+      }
+      const timer = setTimeout(() => finish(new Error('蓝牙写入超时，请重新连接后重试；配置结果尚未确认')), this.writeTimeoutMs)
+      this.pendingWrite = { id: requestId, token, last, resolve: () => finish(), reject: finish }
+      try {
+        uni.writeBLECharacteristicValue({
+          deviceId: this.deviceId, serviceId: this.serviceId,
+          characteristicId: this.rxCharacteristicId, value, writeType: 'write',
+          success: () => finish(), fail: error => finish(toUserError(error)),
+        })
+      } catch (error) { finish(error) }
+    })
+  }
+
+  clearRequest(error = new Error('蓝牙配置请求已结束')) {
+    this.pendingWrite?.reject(error)
     clearTimeout(this.requestTimer)
     this.requestTimer = null
     this.currentRequestId = ''
@@ -289,34 +359,39 @@ export class BleService {
 
   installConnectionListeners() {
     this.removeConnectionListeners()
+    const generation = this.connectionGeneration
     this.characteristicHandler = (result) => {
       if (
+        generation !== this.connectionGeneration ||
         result.deviceId !== this.deviceId ||
         !sameUuid(result.characteristicId, BLE_TX_UUID)
       ) {
         return
       }
-      try {
-        const messages = this.decoder.push(result.value)
-        for (const message of messages) {
-          if (this.currentRequestId && (isReplyForRequest(message, this.currentRequestId) ||
-              (message.id === '00000000' && message.event === 'error'))) {
-            if (['wifi_connected', 'wifi_failed', 'mqtt_connected', 'mqtt_failed', 'error'].includes(message.event)) this.clearRequest()
-            this.messageHandler?.(message)
+      let messages
+      try { messages = this.decoder.push(result.value) }
+      catch (_) {
+        this.decoder.reset()
+        messages = [{ id: '00000000', event: 'protocol_error', reason: 'invalid_response' }]
+      }
+      for (const message of messages) {
+        if (message.event === 'chunk_ack') continue // Ignore legacy firmware receipts.
+        if (this.currentRequestId && (isReplyForRequest(message, this.currentRequestId) ||
+            (message.id === '00000000' && ['error', 'protocol_error'].includes(message.event)))) {
+          console.info(`[BLE RX] id=${message.id} event=${message.event} reason=${message.reason || '-'}`)
+          if (['wifi_connected', 'mqtt_connected'].includes(message.event) && this.pendingWrite?.last) {
+            this.pendingWrite.resolve()
           }
+          if (['wifi_connected', 'wifi_failed', 'mqtt_connected', 'mqtt_failed', 'error', 'protocol_error'].includes(message.event)) {
+            if (this.sending && !this.sendingLastChunk) this.requiresReconnect = true
+            this.clearRequest()
+          }
+          this.deliverMessage(message)
         }
-      } catch (_) {
-        const id = this.currentRequestId
-        this.clearRequest()
-        this.messageHandler?.({
-          id,
-          event: 'protocol_error',
-          reason: 'invalid_response',
-        })
       }
     }
     this.connectionStateHandler = (result) => {
-      if (result.deviceId === this.deviceId && !result.connected) {
+      if (generation === this.connectionGeneration && result.deviceId === this.deviceId && !result.connected) {
         const callback = this.disconnectHandler
         this.removeConnectionListeners()
         this.resetConnection()
@@ -325,6 +400,17 @@ export class BleService {
     }
     uni.onBLECharacteristicValueChange(this.characteristicHandler)
     uni.onBLEConnectionStateChange(this.connectionStateHandler)
+  }
+
+  deliverMessage(message) {
+    try { this.messageHandler?.(message) }
+    catch (error) {
+      console.error('[BLE RX] page handler failed', error)
+      if (this.sending && !this.sendingLastChunk) this.requiresReconnect = true
+      this.clearRequest()
+      try { this.messageHandler?.({ id: message.id, event: 'error', reason: 'reply_processing_failed' }) }
+      catch (handlerError) { console.error('[BLE RX] error handler failed', handlerError) }
+    }
   }
 
   removeDeviceFoundListener() {
@@ -360,6 +446,9 @@ export class BleService {
     this.rxCharacteristicId = ''
     this.txCharacteristicId = ''
     this.currentRequestId = ''
+    this.writePayloadBytes = 20
+    this.requiresReconnect = false
+    this.sendingLastChunk = false
     this.messageHandler = null
     this.disconnectHandler = null
     this.decoder.reset()

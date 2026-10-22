@@ -12,7 +12,12 @@ function installDevice() {
     getBLEDeviceServices:o=>ok(o,{services:[{uuid:BLE_SERVICE_UUID}]}),
     getBLEDeviceCharacteristics:o=>ok(o,{characteristics:[{uuid:BLE_RX_UUID,properties:{write:true}},{uuid:BLE_TX_UUID,properties:{notify:true}}]}),
     notifyBLECharacteristicValueChange:ok,
-    writeBLECharacteristicValue:o=>{state.writes.push(new Uint8Array(o.value));ok(o)},
+    setBLEMTU:o=>ok(o,{mtu:247}),
+    getBLEMTU:o=>ok(o,{mtu:247}),
+    writeBLECharacteristicValue:o=>{
+      const bytes=new Uint8Array(o.value)
+      state.writes.push(bytes);ok(o)
+    },
     closeBLEConnection:o=>{state.closes++;ok(o)},
     onBLECharacteristicValueChange:fn=>{state.handlers.message=fn},
     onBLEConnectionStateChange:fn=>{state.handlers.connection=fn},

@@ -135,7 +135,7 @@ function encodedLength(value) {
   return encodeUtf8(value).byteLength
 }
 
-export function encodeWifiRequest(id, ssid, password) {
+export function encodeWifiRequest(id, ssid, password, chunkBytes = MAX_CHUNK_BYTES) {
   if (!/^[0-9a-f]{8}$/.test(id)) {
     throw new Error('请求 ID 必须是 8 位小写十六进制字符')
   }
@@ -148,7 +148,7 @@ export function encodeWifiRequest(id, ssid, password) {
     throw new Error('Wi-Fi 密码不能超过 63 字节')
   }
 
-  return encodeRequest({ id, cmd: 'configure_wifi', ssid, password })
+  return encodeRequest({ id, cmd: 'configure_wifi', ssid, password }, chunkBytes)
 }
 
 function validString(value, maximum, allowEmpty = true) {
@@ -156,7 +156,7 @@ function validString(value, maximum, allowEmpty = true) {
     (allowEmpty || value.length > 0) && encodedLength(value) <= maximum
 }
 
-export function encodeMqttRequest(id, configuration) {
+export function encodeMqttRequest(id, configuration, chunkBytes = MAX_CHUNK_BYTES) {
   if (!/^[0-9a-f]{8}$/.test(id)) throw new Error('请求 ID 必须是 8 位小写十六进制字符')
   const { server, port, username, password } = configuration
   if (!validString(server, 127, false) || !/^[a-zA-Z0-9.-]+$/.test(server)) {
@@ -181,18 +181,21 @@ export function encodeMqttRequest(id, configuration) {
     if (configuration.subQos !== 0 && configuration.subQos !== 1) throw new Error('订阅 QoS 只支持 0 或 1')
     request.subQos = configuration.subQos
   }
-  return encodeRequest(request)
+  return encodeRequest(request, chunkBytes)
 }
 
-function encodeRequest(request) {
+function encodeRequest(request, chunkBytes) {
+  if (!Number.isInteger(chunkBytes) || chunkBytes < 1 || chunkBytes > 512) {
+    throw new Error('蓝牙单次写入长度无效')
+  }
   const frame = encodeUtf8(`${JSON.stringify(request)}\n`)
   if (frame.byteLength > MAX_MESSAGE_BYTES) {
     throw new Error('配置消息不能超过 1024 字节')
   }
 
   const chunks = []
-  for (let offset = 0; offset < frame.byteLength; offset += MAX_CHUNK_BYTES) {
-    chunks.push(frame.slice(offset, offset + MAX_CHUNK_BYTES))
+  for (let offset = 0; offset < frame.byteLength; offset += chunkBytes) {
+    chunks.push(frame.slice(offset, offset + chunkBytes))
   }
   return chunks
 }
@@ -215,7 +218,7 @@ export function provisioningFailureReason(message) {
 
 export class JsonLineDecoder {
   constructor() {
-    this.pendingBytes = new Uint8Array(0)
+    this.reset()
   }
 
   push(buffer) {
@@ -223,25 +226,33 @@ export class JsonLineDecoder {
       buffer instanceof Uint8Array
         ? buffer
         : new Uint8Array(buffer)
-    this.pendingBytes = concatChunks([this.pendingBytes, bytes])
-
     const frames = []
-    let frameStart = 0
-    for (let index = 0; index < this.pendingBytes.length; index += 1) {
-      if (this.pendingBytes[index] !== 0x0a) {
-        continue
+    const invalid = () => frames.push({ id: '00000000', event: 'protocol_error', reason: 'invalid_response' })
+    for (const byte of bytes) {
+      if (byte === 0x0a) {
+        const line = this.discarding ? '' : decodeUtf8(new Uint8Array(this.pendingBytes)).trim()
+        this.reset() // Consume the frame BEFORE parsing, including malformed frames.
+        if (!line) continue
+        try {
+          const message = JSON.parse(line)
+          if (!message || typeof message !== 'object' || Array.isArray(message) ||
+              !/^[0-9a-fA-F]{8}$/.test(message.id) || typeof message.event !== 'string') {
+            invalid()
+          } else frames.push(message)
+        } catch (_) { invalid() }
+      } else if (!this.discarding) {
+        if (this.pendingBytes.length >= MAX_MESSAGE_BYTES) {
+          this.pendingBytes = []
+          this.discarding = true
+          invalid()
+        } else this.pendingBytes.push(byte)
       }
-      const line = decodeUtf8(this.pendingBytes.slice(frameStart, index)).trim()
-      if (line.length > 0) {
-        frames.push(JSON.parse(line))
-      }
-      frameStart = index + 1
     }
-    this.pendingBytes = this.pendingBytes.slice(frameStart)
     return frames
   }
 
   reset() {
-    this.pendingBytes = new Uint8Array(0)
+    this.pendingBytes = []
+    this.discarding = false
   }
 }

@@ -10,7 +10,7 @@
 // Fake network boundary. MqttService itself, its queues and persistence are real.
 class PubSubClient {
  public:
-  inline static std::string server, username, subscribedTopic;
+  inline static std::string server, username, password, clientId, subscribedTopic;
   inline static uint16_t port=0;
   inline static uint8_t qos=0;
   inline static bool connectSucceeds=true, subscribeSucceeds=true;
@@ -24,7 +24,10 @@ class PubSubClient {
   void disconnect() { online=false; }
   bool loop() { return online; }
   int state() { return connectSucceeds ? 0 : MQTT_CONNECT_BAD_CREDENTIALS; }
-  bool connect(const char*,const char* user,const char*) { username=user?user:"";online=connectSucceeds;return online; }
+  bool connect(const char* id,const char* user,const char* pass) {
+    clientId=id?id:"";username=user?user:"";password=pass?pass:"";
+    online=connectSucceeds;return online;
+  }
   bool subscribe(const char* topic, uint8_t value) { subscribedTopic=topic;qos=value;return subscribeSucceeds; }
   bool publish(const char* topic,const uint8_t* payload,size_t length) {
     if(!online) return false;

@@ -23,6 +23,8 @@ enum class BleProtocolResult : uint8_t {
   kInvalidPassword,
   kInvalidMqtt,
   kMessageTooLong,
+  kDuplicateChunk,
+  kInvalidChunk,
 };
 
 enum class BleProvisioningKind : uint8_t { kWifi, kMqtt };
@@ -67,6 +69,8 @@ class BleProvisioningProtocol {
   static bool makeEvent(const char* id, const char* event,
                         const char* reason, const char* ip, char* output,
                         size_t capacity);
+  static bool makeChunkAck(const char* id, uint16_t sequence,
+                           char* output, size_t capacity);
 
  private:
   static bool isRequestId(const char* value);
@@ -81,4 +85,27 @@ class BleProvisioningFrameAssembler {
  private:
   char buffer_[kBleProvisioningMaxMessageBytes + 1] = {};
   size_t length_ = 0;
+};
+
+struct BleChunkReceipt {
+  char id[9] = {};
+  uint16_t sequence = 0;
+};
+
+// Wire format: @ + eight hex ID digits + three hex sequence digits + ':' +
+// up to seven raw JSON bytes. The entire physical write is at most 20 bytes.
+class BleAcknowledgedReceiver {
+ public:
+  BleProtocolResult append(const uint8_t* packet, size_t length,
+                           BleChunkReceipt* receipt, BleWifiRequest* request);
+  void reset();
+
+ private:
+  BleProvisioningFrameAssembler assembler_;
+  char id_[9] = {};
+  uint16_t nextSequence_ = 0;
+  size_t receivedBytes_ = 0;
+  uint8_t lastPacket_[kBleProvisioningMaxChunkBytes] = {};
+  size_t lastLength_ = 0;
+  bool completed_ = false;
 };

@@ -26,15 +26,15 @@ void WiFiDataSource::begin() {
 
 void WiFiDataSource::begin(const WifiCredentialsValue& credentials) {
   WiFi.persistent(false);
-  WiFi.mode(WIFI_STA);
-  WiFi.setAutoReconnect(true);
   connect(credentials, millis());
 }
 
 void WiFiDataSource::poll(uint32_t nowMs) {
   const wl_status_t status = WiFi.status();
   const String ip = WiFi.localIP().toString();
-  const bool isConnected = status == WL_CONNECTED &&
+  const bool attemptCanSucceed = attemptState_ == WifiAttemptState::kConnecting ||
+                                 attemptState_ == WifiAttemptState::kConnected;
+  const bool isConnected = attemptCanSucceed && status == WL_CONNECTED &&
                            WiFi.SSID() == currentCredentials_.ssid &&
                            ip != "0.0.0.0";
 
@@ -85,9 +85,6 @@ NetworkStatus WiFiDataSource::readNetwork() const {
 void WiFiDataSource::connect(const WifiCredentialsValue& credentials,
                             uint32_t nowMs) {
   currentCredentials_ = credentials;
-  connected_ = false;
-  setLocalIp("0.0.0.0");
-  WiFi.disconnect(false, false);
   startConnection(nowMs);
 }
 
@@ -104,9 +101,34 @@ const char* WiFiDataSource::localIp() const { return localIp_; }
 void WiFiDataSource::startConnection(uint32_t nowMs) {
   lastAttemptMs_ = nowMs;
   attemptState_ = WifiAttemptState::kConnecting;
+  connected_ = false;
+  setLocalIp("0.0.0.0");
   Serial.print("Connecting to Wi-Fi: ");
   Serial.println(currentCredentials_.ssid);
-  WiFi.begin(currentCredentials_.ssid, currentCredentials_.password);
+
+  // In core 3.3.3, disconnect(false, false) returns without cancelling an
+  // in-flight association when STA is not connected yet. Stop the Wi-Fi driver
+  // before changing credentials; this does not stop the BLE controller.
+  // Application-level poll() owns periodic retries, not SDK auto-reconnect.
+  WiFi.setAutoReconnect(false);
+  if (!WiFi.mode(WIFI_OFF)) {
+    attemptState_ = WifiAttemptState::kFailed;
+    Serial.println("[Wi-Fi] station stop failed; configuration not changed");
+    return;
+  }
+  if (!WiFi.STA.begin()) {
+    attemptState_ = WifiAttemptState::kFailed;
+    Serial.println("[Wi-Fi] station start failed");
+    return;
+  }
+  // STA.connect() reports whether config/connect was actually accepted.
+  // Legacy WiFi.begin() instead returns a possibly stale connection status.
+  if (!WiFi.STA.connect(currentCredentials_.ssid, currentCredentials_.password)) {
+    attemptState_ = WifiAttemptState::kFailed;
+    Serial.println("[Wi-Fi] driver rejected new connection request");
+    return;
+  }
+  Serial.println("[Wi-Fi] connection request accepted; waiting for IP");
 }
 
 void WiFiDataSource::setLocalIp(const char* value) {

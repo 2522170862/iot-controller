@@ -16,7 +16,8 @@ try {
     'tests/mqtt_provisioning_test/mqtt_service_configuration_test.cpp',
     'tests/ble_provisioning_protocol_test/ble_provisioning_protocol_test.ino',
     'tests/wifi_provisioning_coordinator_test/wifi_provisioning_coordinator_test.ino',
-    'tests/wifi_connection_retry_test/wifi_connection_retry_test.cpp'
+    'tests/wifi_connection_retry_test/wifi_connection_retry_test.cpp',
+    'tests/ble_acknowledged_transfer_test/ble_acknowledged_transfer_test.cpp'
   )
   foreach ($source in $tests) {
     $output = Join-Path $testDirectory (([System.IO.Path]::GetFileNameWithoutExtension($source)) + '.exe')

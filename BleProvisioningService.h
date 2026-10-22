@@ -34,6 +34,8 @@ class BleProvisioningService {
   volatile bool advertisingRestartPending_ = false;
   volatile uint32_t disconnectedMs_ = 0;
   BleProvisioningFrameAssembler assembler_;
+  BleAcknowledgedReceiver acknowledgedReceiver_;
+  bool legacyFrameActive_ = false;
   BleProvisioningRequestQueue requests_;
   char outgoing_[kOutgoingCapacity][kOutgoingFrameCapacity] = {};
   uint8_t outgoingHead_ = 0;

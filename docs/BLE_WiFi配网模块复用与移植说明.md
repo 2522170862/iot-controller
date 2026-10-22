@@ -1,5 +1,7 @@
 # BLE Wi-Fi 配网模块复用与移植说明
 
+当前手机端使用 [普通 BLE JSON 行收发](BLE_JSON收发说明.md)，不再发送自定义包头或等待 `chunk_ack`。复用时复制当前 `BleProvisioningProtocol`、`BleProvisioningService` 和手机端 BLE/协议代码；JSON 字段与 UUID 不变。已确认 MTU 的写入最多 244 字节，无法确认时以 20 字节兼容分段；结果通知仍为最多 20 字节。
+
 本文说明如何把当前项目已经实现的 ESP32-S3 BLE Wi-Fi 配网功能移植到另一个 Arduino 工程，并继续使用当前 `uniapp-ble-provisioning` 微信小程序/Android App 完成配网。
 
 本文中的示例凭据均为占位符。不要把真实 Wi-Fi 密码写入文档、日志或公开仓库。
@@ -10,7 +12,7 @@
 
 1. ESP32-S3 上电后优先读取 NVS 中最后一次验证成功的 Wi-Fi 凭据；
 2. NVS 没有有效记录时，使用 Arduino 工程内的默认 Wi-Fi；
-3. ESP32-S3 始终广播名称为 `IoT-Controller-XXXX` 的 BLE 设备；
+3. ESP32-S3 始终广播名称为 `lot-` 加完整 12 位小写出厂 MAC 的 BLE 设备，例如 `lot-aabbccddeeff`；
 4. 手机连接 BLE 后，调用手机系统扫描附近 Wi-Fi；
 5. 用户选择 2.4GHz Wi-Fi，并通过 BLE 发送 SSID 和密码；
 6. ESP32-S3 在主循环中非阻塞地验证新网络；
@@ -63,7 +65,7 @@ uniapp-ble-provisioning/
 
 | 文件 | 用途 |
 | --- | --- |
-| `utils/protocol.js` | UUID、请求 ID、JSON 编解码和 20 字节分包 |
+| `utils/protocol.js` | UUID、请求 ID、JSON 编解码和按实际载荷长度分段（默认兼容 20 字节） |
 | `services/ble-service.js` | BLE 扫描、连接、特征发现、写入和通知 |
 | `services/wifi-service.js` | 微信/Android 手机 Wi-Fi 扫描和列表整理 |
 | `uni_modules/uni-wifi/` | Android 官方 Wi-Fi 插件 1.0.9，提供扫描和定位权限处理 |
@@ -195,7 +197,7 @@ bleProvisioningService.begin();
 - 不要在串口中打印 `bootCredentials.password`；
 - `BleProvisioningService::begin()` 会开始 BLE 广播；
 - BLE 广播在 Wi-Fi 已连接时仍然保留，方便以后再次换网；
-- 当前广播名称由芯片 MAC 尾部生成，例如 `IoT-Controller-A1B2`。
+- 当前广播名称使用完整六字节出厂 MAC，例如 `lot-aabbccddeeff`；与 MQTT Client ID 相同，重启、重新烧录或清空配置后不变。
 
 ### 4.6 在 `loop()` 中轮询
 
@@ -325,24 +327,16 @@ RX 是手机写入，TX 是 ESP32 通知。如果修改 UUID，必须同步修�
 固件位置：
 
 ```text
-BleProvisioningService.cpp
+DeviceIdentity.h
 ```
 
 当前格式：
 
 ```cpp
-"IoT-Controller-%02X%02X"
+"lot-%02x%02x%02x%02x%02x%02x"
 ```
 
-如果改成例如 `Greenhouse-XXXX`，还必须修改小程序：
-
-```text
-uniapp-ble-provisioning/utils/protocol.js
-```
-
-```js
-export const BLE_DEVICE_NAME_PREFIX = 'Greenhouse-'
-```
+该格式由 `DeviceIdentity::formatName()` 统一生成，蓝牙名称与 MQTT Client ID 共用；12 位后缀保留全部 MAC 字节与前导零。当前小程序扫描不限制名称前缀，只过滤无名称设备，因此修改名称不需要同步修改小程序；BLE 服务及特征值 UUID 仍必须匹配。
 
 ### 5.3 Wi-Fi 验证超时
 
@@ -359,6 +353,8 @@ static constexpr uint32_t kAttemptTimeoutMs = 15000;
 ```
 
 协调器的 `kValidationTimeoutMs` 引用该值，与底层单次连接窗口保持一致。路由器连接较慢时可以适当增大，但不要在 `poll()` 中加入阻塞等待。验证窗口内不能被普通自动重连打断，也不能把上一次连接留下的失败状态当作本次失败；确认成功须核对实际 SSID 和非零 IP。
+
+当前 `WiFiDataSource` 的底层切换流程已按 Arduino-ESP32 3.3.3 验证：关闭持续 SDK 自动重连 → `WiFi.mode(WIFI_OFF)` 停止旧连接 → `WiFi.STA.begin()` → `WiFi.STA.connect()`。不要重新改为只调用 `WiFi.disconnect(false, false)` 后立即 `WiFi.begin()`：在旧连接尚未关联时，该 disconnect 可能直接返回、没有取消旧尝试，导致 `sta is connecting, cannot set config`。停止、启动或配置请求失败都要作为本次失败处理；周期重试、手动切换和失败回滚应共用同一路径。该流程仅控制 Wi-Fi，不清空凭据存储，也不停止 BLE。移植到其他 ESP32 核心版本时，先核实这些 STA API 的可用性。
 
 ### 5.4 NVS 命名空间
 
@@ -523,9 +519,9 @@ pages/index/index.vue
 - 编码：UTF-8；
 - 格式：JSON；
 - 每条消息结尾：换行符 `\n`；
-- 每个 BLE 写入/通知分包：最多 20 字节；
+- BLE 写入：按实际确认的 MTU 减 3 字节，最多 244 字节；无法确认时使用 20 字节。结果通知仍最多 20 字节；
 - 单条完整消息：最多 256 字节；
-- 分包必须按顺序串行写入。
+- 分段必须按顺序等待系统写入回调，段间保留 120ms；不需要应用层 `chunk_ack`。
 
 不要按 JavaScript 字符数切包。中文字符在 UTF-8 中通常占多个字节，必须使用 `TextEncoder` 后按字节切分。
 
@@ -607,12 +603,12 @@ pages/index/index.vue
 推荐保持下面内容完全一致：
 
 - BLE 服务/RX/TX UUID；
-- `IoT-Controller-` 设备名前缀；
+- `lot-` 加完整 12 位出厂 MAC 的设备命名规则（小程序不依赖此前缀过滤）；
 - JSON 字段和事件名称；
 - 20 字节分包和换行结尾；
 - 8 位请求 ID。
 
-每块板通过 MAC 尾部四位区分，因此可以共用同一个小程序。
+每块板通过完整出厂 MAC 区分，因此可以共用同一个小程序。
 
 ### 9.2 协议升级
 
@@ -701,7 +697,7 @@ arduino-cli compile --config-file tmp/arduino-cli-codex.yaml `
 ### 11.2 实机验证
 
 1. 清除配网 NVS 后启动，确认连接默认 Wi-Fi；
-2. 手机能发现 `IoT-Controller-XXXX`；
+2. 手机能发现 `lot-aabbccddeeff` 格式的设备；
 3. BLE 连接成功后，确认 GPIO44（若使用）常亮；
 4. 手机能扫描并显示附近 2.4GHz Wi-Fi；
 5. 输入正确凭据，确认页面依次显示发送、验证和成功；
@@ -716,7 +712,7 @@ arduino-cli compile --config-file tmp/arduino-cli-codex.yaml `
 
 ### 12.1 手机能看到设备，但连接后提示没有配网服务
 
-检查固件和 `utils/protocol.js` 的 Service UUID 是否一致，并确认连接的是当前项目的 `IoT-Controller-XXXX`。
+检查固件和 `utils/protocol.js` 的 Service UUID 是否一致，并确认连接的是当前项目的 `lot-aabbccddeeff` 格式设备。
 
 ### 12.2 能连接 BLE，但发送后没有回复
 

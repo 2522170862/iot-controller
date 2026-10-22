@@ -1,4 +1,5 @@
 #include "BleProvisioningService.h"
+#include "DeviceIdentity.h"
 
 #include <BLE2902.h>
 #include <BLEDevice.h>
@@ -47,13 +48,11 @@ class BleProvisioningService::RxCallbacks
 };
 
 void BleProvisioningService::begin() {
-  const uint64_t mac = ESP.getEfuseMac();
-  char deviceName[24] = {};
-  snprintf(deviceName, sizeof(deviceName), "IoT-Controller-%02X%02X",
-           static_cast<unsigned>((mac >> 8) & 0xFF),
-           static_cast<unsigned>(mac & 0xFF));
+  char deviceName[DeviceIdentity::kNameCapacity] = {};
+  DeviceIdentity::formatName(ESP.getEfuseMac(), deviceName);
 
   BLEDevice::init(deviceName);
+  BLEDevice::setMTU(247);
   server_ = BLEDevice::createServer();
   serverCallbacks_ = new ServerCallbacks(this);
   server_->setCallbacks(serverCallbacks_);
@@ -159,6 +158,8 @@ bool BleProvisioningService::enqueueEvent(
 
 void BleProvisioningService::onConnected() {
   assembler_.reset();
+  acknowledgedReceiver_.reset();
+  legacyFrameActive_ = false;
   connected_ = true;
   advertisingRestartPending_ = false;
   Serial.println("BLE provisioning client connected");
@@ -170,6 +171,8 @@ void BleProvisioningService::onDisconnected() {
   advertisingRestartPending_ = true;
   clearOutgoing();
   assembler_.reset();
+  acknowledgedReceiver_.reset();
+  legacyFrameActive_ = false;
   portENTER_CRITICAL(&queueMux_);
   requests_.clear();
   portEXIT_CRITICAL(&queueMux_);
@@ -178,7 +181,28 @@ void BleProvisioningService::onDisconnected() {
 
 void BleProvisioningService::onWrite(const uint8_t* data, size_t length) {
   BleWifiRequest request = {};
-  const BleProtocolResult result = assembler_.append(data, length, &request);
+  const bool acknowledged = !legacyFrameActive_ && data != nullptr && length > 0 && data[0] == '@';
+  BleChunkReceipt receipt = {};
+  const BleProtocolResult result = acknowledged ?
+      acknowledgedReceiver_.append(data, length, &receipt, &request) :
+      assembler_.append(data, length, &request);
+  if (!acknowledged) legacyFrameActive_ = result == BleProtocolResult::kNeedMore;
+  if (acknowledged) {
+    Serial.printf("[BLE RX] id=%s seq=%u bytes=%u result=%u\n",
+                  receipt.id[0] ? receipt.id : "unknown", receipt.sequence,
+                  static_cast<unsigned>(length), static_cast<unsigned>(result));
+    if (result == BleProtocolResult::kNeedMore || result == BleProtocolResult::kOk ||
+        result == BleProtocolResult::kDuplicateChunk) {
+      char ack[kOutgoingFrameCapacity] = {};
+      if (!BleProvisioningProtocol::makeChunkAck(receipt.id, receipt.sequence, ack, sizeof(ack)) ||
+          !enqueueFrame(ack)) {
+        Serial.println("[BLE RX] acknowledgement queue full; request not dispatched");
+        return;
+      }
+      // Queue receipt before exposing a complete request to the main loop.
+      if (result == BleProtocolResult::kDuplicateChunk) return;
+    }
+  }
   if (result == BleProtocolResult::kNeedMore) {
     return;
   }
@@ -203,8 +227,11 @@ void BleProvisioningService::onWrite(const uint8_t* data, size_t length) {
     reason = "message_too_long";
   } else if (result == BleProtocolResult::kInvalidMqtt) {
     reason = "invalid_mqtt";
+  } else if (result == BleProtocolResult::kInvalidChunk) {
+    reason = "invalid_chunk";
   }
-  enqueueProtocolError(request.id[0] ? request.id : "00000000", reason);
+  Serial.printf("[BLE RX] rejected reason=%s bytes=%u\n", reason, static_cast<unsigned>(length));
+  enqueueProtocolError(receipt.id[0] ? receipt.id : request.id[0] ? request.id : "00000000", reason);
 }
 
 bool BleProvisioningService::enqueueFrame(const char* frame) {

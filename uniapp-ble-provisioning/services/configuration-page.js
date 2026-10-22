@@ -12,7 +12,9 @@ const reasonMessages = {
   invalid_password: 'Wi-Fi 密码长度不正确',
   invalid_request: '控制器不支持此请求，请确认已烧录新版固件',
   invalid_json: '配置消息解析失败，请重新连接后重试',
+  invalid_chunk: '蓝牙分包不完整或顺序错误，请重新连接后重试',
   invalid_response: '控制器回复格式错误，请重新连接后重试',
+  reply_processing_failed: 'APP 处理控制器回复失败，请重试；设备配置结果尚未确认',
   message_too_long: '配置消息太长，请缩短参数或更新开发板固件',
   storage_failed: '控制器保存配置失败，已恢复之前的配置',
   device_timeout: '等待控制器回复超时，请检查设备；结果尚未确认',
@@ -27,6 +29,7 @@ export default {
       selectedWifi: null, selectedWifiPassword: '', showSelectedWifiPassword: false,
       submittedWifiSsid: '', wifiScanGeneration: 0,
       wifiSubmissionMode: '', wifiResult: null, wifiResultTimer: null, wifiResultGeneration: 0,
+      mqttResult: null, mqttResultTimer: null, mqttResultGeneration: 0,
       mqttServer: '', mqttPort: '1883', mqttUsername: '', mqttPassword: '',
       showMqttPassword: false, mqttAdvanced: false,
       mqttSubTopic: '', mqttPubTopic: '', mqttQosIndex: 0,
@@ -43,7 +46,7 @@ export default {
       return this.bleConnected && !!ssid && !this.busy
     },
     canSubmitMqtt() { return this.bleConnected && this.mqttServer.trim().length > 0 && !this.busy },
-    modalTitle() { return { bluetooth: '蓝牙连接', wifi: 'Wi-Fi 配置', 'wifi-list': '选择附近 Wi-Fi', 'wifi-password': '输入 Wi-Fi 密码', 'wifi-result': 'Wi-Fi 配置结果', mqtt: 'MQTT 配置' }[this.modal] || '' },
+    modalTitle() { return { bluetooth: '蓝牙连接', wifi: 'Wi-Fi 配置', 'wifi-list': '选择附近 Wi-Fi', 'wifi-password': '输入 Wi-Fi 密码', 'wifi-result': 'Wi-Fi 配置结果', mqtt: 'MQTT 配置', 'mqtt-result': 'MQTT 配置结果' }[this.modal] || '' },
     statusText() {
       const module = this.activeOperation === 'mqtt' ? 'MQTT 服务器' : 'Wi-Fi'
       if (this.state === 'sending') return `正在通过蓝牙发送${module}配置…`
@@ -61,6 +64,8 @@ export default {
   onUnload() {
     this.clearWifiResultTimer()
     this.wifiResult = null
+    this.clearMqttResultTimer()
+    this.mqttResult = null
     this.wifiScanGeneration++
     clearTimeout(this.scanTimer)
     this.wifiService.close()
@@ -71,10 +76,16 @@ export default {
       if (this.busy) return
       this.clearWifiResultTimer()
       this.wifiResult = null
+      this.clearMqttResultTimer()
+      this.mqttResult = null
       this.errorMessage = ''
       this.modal = !this.bleConnected && name !== 'bluetooth' ? 'bluetooth' : name
     },
     closeModal() {
+      if (this.modal === 'mqtt-result') {
+        this.confirmMqttResult()
+        return
+      }
       if (this.modal === 'wifi-result') {
         this.confirmWifiResult()
         return
@@ -134,6 +145,8 @@ export default {
     resetLink() {
       this.clearWifiResultTimer()
       this.wifiResult = null; this.wifiSubmissionMode = ''
+      this.clearMqttResultTimer()
+      this.mqttResult = null
       this.linkGeneration += 1
       this.requestGeneration += 1
       this.wifiScanGeneration += 1
@@ -208,12 +221,14 @@ export default {
     },
     async submitMqtt() {
       if (!this.canSubmitMqtt) return
+      this.clearMqttResultTimer()
+      this.mqttResult = null
       this.errorMessage = ''; this.activeOperation = 'mqtt'; this.state = 'sending'
       const generation = ++this.requestGeneration
       try {
         await this.bleService.sendMqttConfiguration(this.mqttConfiguration())
         if (generation === this.requestGeneration && this.state === 'sending') this.state = 'validating'
-      } catch (error) { if (generation === this.requestGeneration) this.fail(error) }
+      } catch (error) { if (generation === this.requestGeneration && this.activeOperation === 'mqtt') this.fail(error) }
     },
     handleProvisioningMessage(message) {
       if (message.event === `${this.activeOperation}_connecting`) { this.state = 'validating'; return }
@@ -230,7 +245,9 @@ export default {
         this.mqttSummary = `${this.mqttServer.trim()}:${Number(this.mqttPort)}`
         this.mqttPassword = ''; this.showMqttPassword = false
         this.resultMessage = 'MQTT 配置已验证并保存，下次启动自动使用此服务器'
-        this.state = 'success'; this.activeOperation = ''; return
+        this.state = 'success'; this.activeOperation = ''
+        this.showMqttResult(true, this.resultMessage)
+        return
       }
       const reason = provisioningFailureReason(message)
       if (reason !== null) {
@@ -265,10 +282,37 @@ export default {
       this.showSelectedWifiPassword = false
       this.modal = !success && this.bleConnected && this.selectedWifi ? 'wifi-password' : ''
     },
+    clearMqttResultTimer() {
+      clearTimeout(this.mqttResultTimer)
+      this.mqttResultTimer = null
+      this.mqttResultGeneration++
+    },
+    showMqttResult(success, message) {
+      this.clearMqttResultTimer()
+      this.mqttResult = {
+        success, message,
+        server: `${this.mqttServer.trim()}:${Number(this.mqttPort)}`,
+      }
+      this.modal = 'mqtt-result'
+      const generation = this.mqttResultGeneration
+      this.mqttResultTimer = setTimeout(() => {
+        if (generation === this.mqttResultGeneration && this.modal === 'mqtt-result') this.confirmMqttResult()
+      }, 3000)
+    },
+    confirmMqttResult() {
+      if (!this.mqttResult) return
+      const success = this.mqttResult.success
+      this.clearMqttResultTimer()
+      this.mqttResult = null
+      this.showMqttPassword = false
+      this.modal = !success && this.bleConnected ? 'mqtt' : ''
+    },
     fail(error) {
       const showResult = this.activeOperation === 'wifi' && this.wifiSubmissionMode === 'selected'
+      const showMqttResult = this.activeOperation === 'mqtt'
       this.errorMessage = error?.message || '操作失败'; this.state = 'error'; this.activeOperation = ''
       if (showResult) this.showWifiResult(false, this.errorMessage)
+      if (showMqttResult) this.showMqttResult(false, this.errorMessage)
     },
   },
 }
